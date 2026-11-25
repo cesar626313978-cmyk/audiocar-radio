@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio, Sun, Moon, Sliders, ShieldAlert, Wifi, RefreshCw } from 'lucide-react';
+import { Radio, Sun, Moon, Sliders, ShieldAlert, Wifi, RefreshCw, Home } from 'lucide-react';
 import { ThemeMode } from '../types';
 import { ConnectionStatus } from '../services/watchdog';
 
@@ -83,6 +83,15 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           title="Ecualizador de Cabina y Búfer"
         >
           <Sliders className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={() => { window.location.href = '/'; }}
+          className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors flex items-center space-x-1.5 px-3"
+          title="Volver al Launcher / Hub principal"
+        >
+          <Home className="w-4 h-4 text-red-500" />
+          <span className="hidden md:inline text-xs font-semibold">Inicio / Hub</span>
         </button>
 
         <button
