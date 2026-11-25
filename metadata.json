@@ -1,0 +1,6 @@
+{
+  "name": "AudioCar Radio",
+  "description": "Tesla OS Web Radio streaming PWA with Radio Browser API, Web Audio EQ, and Anti-Tunnel Watchdog",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
