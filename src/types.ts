@@ -14,6 +14,7 @@ export interface Station {
   bitrate?: number;
   tags?: string[];
   isCustom?: boolean;
+  playCount?: number;
 }
 
 export type ThemeMode = 'dark' | 'light' | 'auto';
@@ -27,14 +28,4 @@ export interface EQSettings {
   preset: 'flat' | 'news' | 'bass-boost' | 'custom';
 }
 
-export interface UserSession {
-  loggedIn: boolean;
-  user?: {
-    name: string;
-    email: string;
-    picture: string;
-  };
-  sessionId?: string;
-}
-
-export type RadioTab = 'favorites' | 'spain' | 'world' | 'recent';
+export type RadioTab = 'mostPlayed' | 'spain' | 'world' | 'recent';

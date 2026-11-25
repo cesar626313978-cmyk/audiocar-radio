@@ -1,15 +1,13 @@
 import React from 'react';
-import { Radio, Sun, Moon, Sliders, User, ShieldAlert, Wifi, RefreshCw } from 'lucide-react';
-import { ThemeMode, UserSession } from '../types';
+import { Radio, Sun, Moon, Sliders, ShieldAlert, Wifi, RefreshCw } from 'lucide-react';
+import { ThemeMode } from '../types';
 import { ConnectionStatus } from '../services/watchdog';
 
 interface HeaderNavProps {
   theme: ThemeMode;
   onThemeChange: (theme: ThemeMode) => void;
   connectionStatus: ConnectionStatus;
-  session: UserSession;
   onOpenEQ: () => void;
-  onOpenAuth: () => void;
   onOpenCustom: () => void;
 }
 
@@ -17,9 +15,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   theme,
   onThemeChange,
   connectionStatus,
-  session,
   onOpenEQ,
-  onOpenAuth,
   onOpenCustom,
 }) => {
   const cycleTheme = () => {
@@ -75,7 +71,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
       <div className="flex items-center space-x-2 md:space-x-3">
         <button
           onClick={onOpenCustom}
-          className="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs font-medium transition-colors flex items-center space-x-1.5"
+          className="px-3 py-2 rounded-lg bg-red-600/25 hover:bg-red-600/35 border border-red-500/30 text-red-400 text-xs font-medium transition-colors flex items-center space-x-1.5"
           title="Añadir URL de Emisora Personalizada"
         >
           <span>+ Emisora</span>
@@ -95,25 +91,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           title={`Tema: ${theme}`}
         >
           {theme === 'dark' ? <Moon className="w-5 h-5 text-indigo-400" /> : <Sun className="w-5 h-5 text-amber-400" />}
-        </button>
-
-        <button
-          onClick={onOpenAuth}
-          className={`p-2 rounded-xl border flex items-center space-x-2 transition-colors ${
-            session.loggedIn
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-              : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300'
-          }`}
-          title={session.loggedIn ? `Conectado como ${session.user?.name}` : 'Iniciar Sesión / QR Sync'}
-        >
-          {session.loggedIn && session.user?.picture ? (
-            <img src={session.user.picture} alt="Avatar" className="w-6 h-6 rounded-full object-cover" />
-          ) : (
-            <User className="w-5 h-5" />
-          )}
-          <span className="hidden lg:inline text-xs font-medium">
-            {session.loggedIn ? session.user?.name.split(' ')[0] : 'Sincronizar'}
-          </span>
         </button>
       </div>
     </header>

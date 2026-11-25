@@ -6,7 +6,7 @@ interface DriveModeBarProps {
   currentStation: Station | null;
   isPlaying: boolean;
   onTogglePlay: () => void;
-  onNextFavorite: () => void;
+  onNextStation: () => void;
   onToggleDrawer: () => void;
 }
 
@@ -14,7 +14,7 @@ export const DriveModeBar: React.FC<DriveModeBarProps> = ({
   currentStation,
   isPlaying,
   onTogglePlay,
-  onNextFavorite,
+  onNextStation,
   onToggleDrawer,
 }) => {
   return (
@@ -50,7 +50,7 @@ export const DriveModeBar: React.FC<DriveModeBarProps> = ({
         </button>
 
         <button
-          onClick={onNextFavorite}
+          onClick={onNextStation}
           className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 flex items-center justify-center active:scale-95 transition-transform"
         >
           <SkipForward className="w-6 h-6" />

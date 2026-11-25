@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
-import { Search, Heart, Globe, Clock, Star, Play, Trash2, Radio as RadioIcon, Sparkles } from 'lucide-react';
+import { Search, TrendingUp, Globe, Clock, Play, Trash2, Radio as RadioIcon, Sparkles, RotateCcw } from 'lucide-react';
 import { Station, RadioTab } from '../types';
 
 interface SidebarDirectoryProps {
   currentStation: Station | null;
   isPlaying: boolean;
   onSelectStation: (station: Station) => void;
-  favorites: Station[];
+  mostPlayed: Station[];
   recent: Station[];
   customStations: Station[];
   spainStations: Station[];
   worldStations: Station[];
-  onToggleFavorite: (station: Station) => void;
   onDeleteCustom: (id: string) => void;
   onSearch: (query: string) => void;
   onSelectGenre: (genre: string) => void;
+  onResetPlayCounts: () => void;
 }
 
 const GENRES = [
@@ -33,17 +33,17 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
   currentStation,
   isPlaying,
   onSelectStation,
-  favorites,
+  mostPlayed,
   recent,
   customStations,
   spainStations,
   worldStations,
-  onToggleFavorite,
   onDeleteCustom,
   onSearch,
   onSelectGenre,
+  onResetPlayCounts,
 }) => {
-  const [activeTab, setActiveTab] = useState<RadioTab>('favorites');
+  const [activeTab, setActiveTab] = useState<RadioTab>('mostPlayed');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('Todos');
 
@@ -60,15 +60,14 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
 
   const getDisplayStations = (): Station[] => {
     if (searchQuery.trim()) {
-      // Return combined search results or filtered list
-      const all = [...favorites, ...spainStations, ...worldStations, ...customStations];
+      const all = [...mostPlayed, ...spainStations, ...worldStations, ...customStations];
       const q = searchQuery.toLowerCase();
       return all.filter(s => s.name.toLowerCase().includes(q) || s.tags?.some(t => t.includes(q)));
     }
 
     switch (activeTab) {
-      case 'favorites':
-        return [...favorites, ...customStations];
+      case 'mostPlayed':
+        return mostPlayed;
       case 'spain':
         return spainStations;
       case 'world':
@@ -76,7 +75,7 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
       case 'recent':
         return recent;
       default:
-        return favorites;
+        return mostPlayed;
     }
   };
 
@@ -100,13 +99,13 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
         {/* Navigation Tabs */}
         <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
           <button
-            onClick={() => setActiveTab('favorites')}
+            onClick={() => setActiveTab('mostPlayed')}
             className={`py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center transition-all ${
-              activeTab === 'favorites' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+              activeTab === 'mostPlayed' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Star className="w-3.5 h-3.5 mb-0.5" />
-            <span>Favoritas</span>
+            <TrendingUp className="w-3.5 h-3.5 mb-0.5" />
+            <span>Top</span>
           </button>
           <button
             onClick={() => setActiveTab('spain')}
@@ -155,6 +154,21 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
         </div>
       </div>
 
+      {/* Subheader for Most Played with Reset Button */}
+      {activeTab === 'mostPlayed' && (
+        <div className="px-4 py-2 bg-slate-950/40 border-b border-white/5 flex items-center justify-between text-xs text-slate-400">
+          <span>Ordenadas por uso automático</span>
+          <button
+            onClick={onResetPlayCounts}
+            className="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+            title="Reiniciar contador de reproducciones"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reiniciar</span>
+          </button>
+        </div>
+      )}
+
       {/* Stations List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar">
         {stations.length === 0 ? (
@@ -165,7 +179,6 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
         ) : (
           stations.map(station => {
             const isSelected = currentStation?.id === station.id;
-            const isFav = favorites.some(f => f.id === station.id);
 
             return (
               <div
@@ -210,10 +223,10 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
                       <span className="uppercase">{station.countrycode || station.country}</span>
                       <span>•</span>
                       <span>{station.bitrate ? `${station.bitrate} kbps` : '128 kbps'}</span>
-                      {station.codec && (
+                      {station.playCount !== undefined && station.playCount > 0 && (
                         <>
                           <span>•</span>
-                          <span className="font-mono text-[10px] bg-slate-800 px-1 rounded">{station.codec}</span>
+                          <span className="text-red-400 font-mono">▶ {station.playCount}</span>
                         </>
                       )}
                     </div>
@@ -221,19 +234,6 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-1 pl-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleFavorite(station);
-                    }}
-                    className={`p-2 rounded-lg transition-colors ${
-                      isFav ? 'text-red-500 hover:text-red-400' : 'text-slate-600 hover:text-slate-400'
-                    }`}
-                    title={isFav ? 'Quitar de favoritas' : 'Añadir a favoritas'}
-                  >
-                    <Heart className={`w-4 h-4 ${isFav ? 'fill-red-500' : ''}`} />
-                  </button>
-
                   {station.isCustom && (
                     <button
                       onClick={(e) => {

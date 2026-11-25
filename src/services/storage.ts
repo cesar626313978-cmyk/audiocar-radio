@@ -1,47 +1,71 @@
-import { Station, EQSettings, PreRollBuffer, ThemeMode, UserSession } from '../types';
+import { Station, EQSettings, PreRollBuffer, ThemeMode } from '../types';
 import { FALLBACK_STATIONS } from './radioBrowser';
 
 const KEYS = {
-  FAVORITES: 'audiocar_radio_favorites',
+  PLAY_COUNTS: 'audiocar_radio_play_counts',
   RECENT: 'audiocar_radio_recent',
   CUSTOM: 'audiocar_radio_custom',
   EQ: 'audiocar_radio_eq',
   BUFFER: 'audiocar_radio_buffer',
   THEME: 'audiocar_radio_theme',
-  SESSION: 'audiocar_radio_session',
 };
 
-const DEFAULT_FAVORITES: Station[] = [
-  FALLBACK_STATIONS[0], // LOS 40
-  FALLBACK_STATIONS[1], // Cadena SER
-  FALLBACK_STATIONS[4], // Rock FM
-  FALLBACK_STATIONS[6], // BBC World
-];
-
-export function getFavorites(): Station[] {
+export function getPlayCounts(): Record<string, number> {
   try {
-    const raw = localStorage.getItem(KEYS.FAVORITES);
-    if (!raw) return DEFAULT_FAVORITES;
+    const raw = localStorage.getItem(KEYS.PLAY_COUNTS);
+    if (!raw) {
+      // Default initial play counts for fallback stations
+      const defaults: Record<string, number> = {
+        'los40-es': 12,
+        'cadena-ser-es': 10,
+        'rock-fm-es': 8,
+        'bbc-world-uk': 6,
+      };
+      localStorage.setItem(KEYS.PLAY_COUNTS, JSON.stringify(defaults));
+      return defaults;
+    }
     return JSON.parse(raw);
   } catch {
-    return DEFAULT_FAVORITES;
+    return {};
   }
 }
 
-export function saveFavorites(stations: Station[]): void {
+export function incrementPlayCount(stationId: string): Record<string, number> {
   try {
-    localStorage.setItem(KEYS.FAVORITES, JSON.stringify(stations));
-  } catch (e) {
-    console.error('Failed to save favorites', e);
+    const counts = getPlayCounts();
+    counts[stationId] = (counts[stationId] || 0) + 1;
+    localStorage.setItem(KEYS.PLAY_COUNTS, JSON.stringify(counts));
+    return counts;
+  } catch {
+    return {};
   }
 }
 
-export function toggleFavorite(station: Station): Station[] {
-  const favs = getFavorites();
-  const exists = favs.some(s => s.id === station.id);
-  const updated = exists ? favs.filter(s => s.id !== station.id) : [station, ...favs];
-  saveFavorites(updated);
-  return updated;
+export function resetPlayCounts(): Record<string, number> {
+  try {
+    localStorage.setItem(KEYS.PLAY_COUNTS, JSON.stringify({}));
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+export function getMostPlayedStations(allStations: Station[]): Station[] {
+  const counts = getPlayCounts();
+  // Combine fallback and custom and all known stations
+  const map = new Map<string, Station>();
+  FALLBACK_STATIONS.forEach(s => map.set(s.id, s));
+  allStations.forEach(s => map.set(s.id, s));
+  getCustomStations().forEach(s => map.set(s.id, s));
+
+  const list = Array.from(map.values()).map(s => ({
+    ...s,
+    playCount: counts[s.id] || 0,
+  }));
+
+  // Sort descending by playCount
+  list.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+  return list;
 }
 
 export function getRecentStations(): Station[] {
@@ -112,7 +136,7 @@ export function saveEQSettings(eq: EQSettings): void {
 export function getPreRollBuffer(): PreRollBuffer {
   try {
     const raw = localStorage.getItem(KEYS.BUFFER);
-    return raw ? (JSON.parse(raw) as PreRollBuffer) : 5; // Default 5s per user preference
+    return raw ? (JSON.parse(raw) as PreRollBuffer) : 5;
   } catch {
     return 5;
   }
@@ -127,7 +151,7 @@ export function savePreRollBuffer(buffer: PreRollBuffer): void {
 export function getThemeMode(): ThemeMode {
   try {
     const raw = localStorage.getItem(KEYS.THEME);
-    return raw ? (JSON.parse(raw) as ThemeMode) : 'dark'; // Default dark mode per user preference
+    return raw ? (JSON.parse(raw) as ThemeMode) : 'dark';
   } catch {
     return 'dark';
   }
@@ -136,20 +160,5 @@ export function getThemeMode(): ThemeMode {
 export function saveThemeMode(theme: ThemeMode): void {
   try {
     localStorage.setItem(KEYS.THEME, JSON.stringify(theme));
-  } catch {}
-}
-
-export function getUserSession(): UserSession {
-  try {
-    const raw = localStorage.getItem(KEYS.SESSION);
-    return raw ? JSON.parse(raw) : { loggedIn: false };
-  } catch {
-    return { loggedIn: false };
-  }
-}
-
-export function saveUserSession(session: UserSession): void {
-  try {
-    localStorage.setItem(KEYS.SESSION, JSON.stringify(session));
   } catch {}
 }

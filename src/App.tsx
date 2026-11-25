@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Station, ThemeMode, EQSettings, PreRollBuffer, UserSession } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Station, ThemeMode, EQSettings, PreRollBuffer } from './types';
 import {
-  getFavorites,
-  saveFavorites,
-  toggleFavorite as persistToggleFavorite,
+  getMostPlayedStations,
+  incrementPlayCount,
+  resetPlayCounts,
   getRecentStations,
   addRecentStation,
   getCustomStations,
@@ -15,8 +15,6 @@ import {
   savePreRollBuffer,
   getThemeMode,
   saveThemeMode,
-  getUserSession,
-  saveUserSession,
 } from './services/storage';
 import {
   FALLBACK_STATIONS,
@@ -31,35 +29,40 @@ import { SidebarDirectory } from './components/SidebarDirectory';
 import { MainPlayer } from './components/MainPlayer';
 import { AudioEqualizerModal } from './components/AudioEqualizerModal';
 import { CustomStationModal } from './components/CustomStationModal';
-import { AuthQRModal } from './components/AuthQRModal';
 import { DriveModeBar } from './components/DriveModeBar';
 
 export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(getThemeMode());
-  const [favorites, setFavorites] = useState<Station[]>(getFavorites());
+  const [mostPlayed, setMostPlayed] = useState<Station[]>(getMostPlayedStations([]));
   const [recent, setRecent] = useState<Station[]>(getRecentStations());
   const [customStations, setCustomStations] = useState<Station[]>(getCustomStations());
   const [spainStations, setSpainStations] = useState<Station[]>([]);
   const [worldStations, setWorldStations] = useState<Station[]>([]);
   
-  const [currentStation, setCurrentStation] = useState<Station | null>(favorites[0] || FALLBACK_STATIONS[0]);
+  const [currentStation, setCurrentStation] = useState<Station | null>(mostPlayed[0] || FALLBACK_STATIONS[0]);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
   const [muted, setMuted] = useState<boolean>(false);
 
   const [eq, setEQ] = useState<EQSettings>(getEQSettings());
   const [buffer, setBuffer] = useState<PreRollBuffer>(getPreRollBuffer());
-  const [session, setSession] = useState<UserSession>(getUserSession());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('online');
 
   const [isEQOpen, setIsEQOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCustomOpen, setIsCustomOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
+  // Play count timer ref (increments play count after 15 seconds of continuous playback)
+  const playTimerRef = useRef<any>(null);
+  const playCountRecordedRef = useRef<boolean>(false);
+
   // Initial load of Spain and World stations
   useEffect(() => {
-    getSpainStations().then(setSpainStations).catch(console.warn);
+    getSpainStations().then((res) => {
+      setSpainStations(res);
+      setMostPlayed(getMostPlayedStations(res));
+    }).catch(console.warn);
+
     getWorldStations().then(setWorldStations).catch(console.warn);
   }, []);
 
@@ -72,7 +75,6 @@ export default function App() {
     } else if (theme === 'light') {
       root.classList.remove('dark');
     } else {
-      // Auto
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (prefersDark) root.classList.add('dark');
       else root.classList.remove('dark');
@@ -94,7 +96,29 @@ export default function App() {
     audioEngine.setEQ(eq);
   }, []);
 
-  // MediaSession API Integration for Tesla steering wheel and system media cards
+  // Play count 15-second tracking timer
+  useEffect(() => {
+    if (isPlaying && currentStation) {
+      playCountRecordedRef.current = false;
+      if (playTimerRef.current) clearTimeout(playTimerRef.current);
+
+      playTimerRef.current = setTimeout(() => {
+        if (isPlaying && currentStation && !playCountRecordedRef.current) {
+          playCountRecordedRef.current = true;
+          incrementPlayCount(currentStation.id);
+          setMostPlayed(getMostPlayedStations([...spainStations, ...worldStations]));
+        }
+      }, 15000); // 15 seconds
+    } else {
+      if (playTimerRef.current) clearTimeout(playTimerRef.current);
+    }
+
+    return () => {
+      if (playTimerRef.current) clearTimeout(playTimerRef.current);
+    };
+  }, [isPlaying, currentStation]);
+
+  // MediaSession API Integration
   useEffect(() => {
     if ('mediaSession' in navigator && currentStation) {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -108,8 +132,8 @@ export default function App() {
 
       navigator.mediaSession.setActionHandler('play', () => handleTogglePlay());
       navigator.mediaSession.setActionHandler('pause', () => handleTogglePlay());
-      navigator.mediaSession.setActionHandler('previoustrack', () => handlePrevFavorite());
-      navigator.mediaSession.setActionHandler('nexttrack', () => handleNextFavorite());
+      navigator.mediaSession.setActionHandler('previoustrack', () => handlePrevStation());
+      navigator.mediaSession.setActionHandler('nexttrack', () => handleNextStation());
     }
   }, [currentStation]);
 
@@ -140,34 +164,36 @@ export default function App() {
     }
   };
 
-  const handleNextFavorite = () => {
-    if (favorites.length === 0) return;
-    const currentIndex = favorites.findIndex(s => s.id === currentStation?.id);
-    const nextIndex = (currentIndex + 1) % favorites.length;
-    handleSelectStation(favorites[nextIndex]);
+  const handleNextStation = () => {
+    const list = mostPlayed.length > 0 ? mostPlayed : FALLBACK_STATIONS;
+    const currentIndex = list.findIndex(s => s.id === currentStation?.id);
+    const nextIndex = (currentIndex + 1) % list.length;
+    handleSelectStation(list[nextIndex]);
   };
 
-  const handlePrevFavorite = () => {
-    if (favorites.length === 0) return;
-    const currentIndex = favorites.findIndex(s => s.id === currentStation?.id);
-    const prevIndex = (currentIndex - 1 + favorites.length) % favorites.length;
-    handleSelectStation(favorites[prevIndex]);
-  };
-
-  const handleToggleFavorite = (station: Station) => {
-    const updated = persistToggleFavorite(station);
-    setFavorites(updated);
+  const handlePrevStation = () => {
+    const list = mostPlayed.length > 0 ? mostPlayed : FALLBACK_STATIONS;
+    const currentIndex = list.findIndex(s => s.id === currentStation?.id);
+    const prevIndex = (currentIndex - 1 + list.length) % list.length;
+    handleSelectStation(list[prevIndex]);
   };
 
   const handleAddCustom = (station: Station) => {
     const updated = addCustomStation(station);
     setCustomStations(updated);
+    setMostPlayed(getMostPlayedStations([...spainStations, ...worldStations]));
     handleSelectStation(station);
   };
 
   const handleDeleteCustom = (id: string) => {
     const updated = persistDeleteCustom(id);
     setCustomStations(updated);
+    setMostPlayed(getMostPlayedStations([...spainStations, ...worldStations]));
+  };
+
+  const handleResetPlayCounts = () => {
+    resetPlayCounts();
+    setMostPlayed(getMostPlayedStations([...spainStations, ...worldStations]));
   };
 
   const handleUpdateEQ = (newEQ: EQSettings) => {
@@ -221,20 +247,15 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      {/* Tesla OS Header Navigation */}
       <HeaderNav
         theme={theme}
         onThemeChange={setTheme}
         connectionStatus={connectionStatus}
-        session={session}
         onOpenEQ={() => setIsEQOpen(true)}
-        onOpenAuth={() => setIsAuthOpen(true)}
         onOpenCustom={() => setIsCustomOpen(true)}
       />
 
-      {/* Main Content Layout (Dual column for Desktop / Park mode, Single column for Mobile / Drive mode) */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Sidebar Directory (Desktop always visible, Mobile in drawer) */}
         <div
           className={`absolute lg:relative inset-y-0 left-0 z-30 transition-transform duration-300 transform ${
             isMobileDrawerOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -247,19 +268,18 @@ export default function App() {
               handleSelectStation(st);
               setIsMobileDrawerOpen(false);
             }}
-            favorites={favorites}
+            mostPlayed={mostPlayed}
             recent={recent}
             customStations={customStations}
             spainStations={spainStations}
             worldStations={worldStations}
-            onToggleFavorite={handleToggleFavorite}
             onDeleteCustom={handleDeleteCustom}
             onSearch={handleSearch}
             onSelectGenre={handleSelectGenre}
+            onResetPlayCounts={handleResetPlayCounts}
           />
         </div>
 
-        {/* Mobile drawer backdrop */}
         {isMobileDrawerOpen && (
           <div
             className="fixed inset-0 bg-slate-950/70 z-20 lg:hidden backdrop-blur-sm"
@@ -267,15 +287,12 @@ export default function App() {
           ></div>
         )}
 
-        {/* Main Player HUD */}
         <MainPlayer
           currentStation={currentStation}
           isPlaying={isPlaying}
           onTogglePlay={handleTogglePlay}
-          onNextFavorite={handleNextFavorite}
-          onPrevFavorite={handlePrevFavorite}
-          favorites={favorites}
-          onToggleFavorite={handleToggleFavorite}
+          onNextStation={handleNextStation}
+          onPrevStation={handlePrevStation}
           volume={volume}
           onVolumeChange={handleVolumeChange}
           muted={muted}
@@ -284,16 +301,14 @@ export default function App() {
         />
       </div>
 
-      {/* Tesla Split-Screen Drive Mode Bar (< 900px) */}
       <DriveModeBar
         currentStation={currentStation}
         isPlaying={isPlaying}
         onTogglePlay={handleTogglePlay}
-        onNextFavorite={handleNextFavorite}
+        onNextStation={handleNextStation}
         onToggleDrawer={() => setIsMobileDrawerOpen(true)}
       />
 
-      {/* Modals */}
       <AudioEqualizerModal
         isOpen={isEQOpen}
         onClose={() => setIsEQOpen(false)}
@@ -307,16 +322,6 @@ export default function App() {
         isOpen={isCustomOpen}
         onClose={() => setIsCustomOpen(false)}
         onAddStation={handleAddCustom}
-      />
-
-      <AuthQRModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        session={session}
-        onUpdateSession={(s) => {
-          setSession(s);
-          saveUserSession(s);
-        }}
       />
     </div>
   );
