@@ -4,6 +4,8 @@ import {
   getMostPlayedStations,
   incrementPlayCount,
   resetPlayCounts,
+  getFavoriteIds,
+  toggleFavoriteStation,
   getRecentStations,
   addRecentStation,
   getCustomStations,
@@ -39,10 +41,10 @@ import { SidebarDirectory } from './components/SidebarDirectory';
 import { MainPlayer } from './components/MainPlayer';
 import { AudioEqualizerModal } from './components/AudioEqualizerModal';
 import { CustomStationModal } from './components/CustomStationModal';
-import { DriveModeBar } from './components/DriveModeBar';
 
 export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(getThemeMode());
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(getFavoriteIds());
   const [mostPlayed, setMostPlayed] = useState<Station[]>(getMostPlayedStations([]));
   const [recent, setRecent] = useState<Station[]>(getRecentStations());
   const [customStations, setCustomStations] = useState<Station[]>(getCustomStations());
@@ -257,7 +259,7 @@ export default function App() {
     audioEngine.loadStream(station.url, buffer);
     watchdog.start(station.url, buffer);
 
-    // Regresa automáticamente a la vista del reproductor al pulsar una emisora
+    // Regresa automáticamente al reproductor principal superior al pulsar una emisora
     setMobileView('player');
   };
 
@@ -281,6 +283,12 @@ export default function App() {
     if (getTeslaSession()) {
       sendTeslaMediaCommand('media_toggle_playback').catch(console.warn);
     }
+  };
+
+  const handleToggleFavoriteStation = (stationId: string) => {
+    const updatedFavs = toggleFavoriteStation(stationId);
+    setFavoriteIds(updatedFavs);
+    setMostPlayed(getMostPlayedStations([...spainStations, ...worldStations]));
   };
 
   const handleTeslaVolumeDown = () => {
@@ -387,6 +395,7 @@ export default function App() {
   };
 
   const hasValidTeslaSession = Boolean(teslaSession && teslaSession.access_token && teslaSession.vehicle_id);
+  const isCurrentFavorite = Boolean(currentStation && favoriteIds.includes(currentStation.id));
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
@@ -400,12 +409,32 @@ export default function App() {
         onToggleMobileView={toggleMobileView}
       />
 
-      <div className="flex-1 flex overflow-hidden relative min-h-0">
-        {/* Panel de Emisoras / Favoritos: Siempre visible en >= 1100px, o a pantalla completa en < 1100px cuando mobileView === 'stations' */}
+      <div className="flex-1 flex flex-col min-[1100px]:flex-row overflow-hidden relative min-h-0">
+        {/* Único Reproductor Principal Superior:
+            - Cuando mobileView === 'stations' en pantallas < 1100px, se muestra como cabecera compacta superior con Play/Stop y botón "🔊 Volver al Reproductor".
+            - En >= 1100px o cuando mobileView === 'player', se muestra completo sin barra inferior duplicada. */}
+        {mobileView === 'stations' && (
+          <MainPlayer
+            currentStation={currentStation}
+            isPlaying={isPlaying}
+            onTogglePlay={handleTogglePlay}
+            onNextStation={handleNextStation}
+            onPrevStation={handlePrevStation}
+            volume={volume}
+            onVolumeChange={handleVolumeChange}
+            muted={muted}
+            onToggleMute={handleToggleMute}
+            connectionStatus={connectionStatus}
+            compactHeaderOnly={true}
+            onBackToPlayer={() => setMobileView('player')}
+          />
+        )}
+
+        {/* Panel de Emisoras / Favoritos */}
         <div
           className={`${
-            mobileView === 'stations' ? 'flex w-full' : 'hidden'
-          } min-[1100px]:flex min-[1100px]:w-[400px] h-full shrink-0`}
+            mobileView === 'stations' ? 'flex w-full flex-1 min-h-0' : 'hidden'
+          } min-[1100px]:flex min-[1100px]:w-[400px] min-[1100px]:flex-none h-full shrink-0`}
         >
           <SidebarDirectory
             currentStation={currentStation}
@@ -420,11 +449,12 @@ export default function App() {
             onSearch={handleSearch}
             onSelectGenre={handleSelectGenre}
             onResetPlayCounts={handleResetPlayCounts}
-            onBackToPlayer={() => setMobileView('player')}
+            favoriteIds={favoriteIds}
+            onToggleFavoriteStation={handleToggleFavoriteStation}
           />
         </div>
 
-        {/* Vista del Reproductor: Siempre visible en >= 1100px, o en < 1100px cuando mobileView === 'player' */}
+        {/* Vista completa del Reproductor Principal */}
         <div
           className={`${
             mobileView === 'player' ? 'flex' : 'hidden'
@@ -447,23 +477,11 @@ export default function App() {
             onTeslaVolumeUp={handleTeslaVolumeUp}
             activeShiftState={activeShiftState}
             isReverseDimmed={isReverseDimmed}
+            isFavorite={isCurrentFavorite}
+            onToggleFavorite={() => currentStation && handleToggleFavoriteStation(currentStation.id)}
           />
         </div>
       </div>
-
-      {/* Barra inferior permanente en pantallas < 1100px (Tesla en marcha) */}
-      <DriveModeBar
-        currentStation={currentStation}
-        isPlaying={isPlaying}
-        onTogglePlay={handleTogglePlay}
-        onPrevStation={handlePrevStation}
-        onNextStation={handleNextStation}
-        mobileView={mobileView}
-        onToggleMobileView={toggleMobileView}
-        hasTeslaSession={hasValidTeslaSession}
-        onTeslaVolumeDown={handleTeslaVolumeDown}
-        onTeslaVolumeUp={handleTeslaVolumeUp}
-      />
 
       <AudioEqualizerModal
         isOpen={isEQOpen}

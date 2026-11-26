@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, TrendingUp, Globe, Clock, Trash2, Radio as RadioIcon, Sparkles, RotateCcw, Volume2 } from 'lucide-react';
+import { Search, TrendingUp, Globe, Clock, Trash2, Radio as RadioIcon, Sparkles, RotateCcw, Heart } from 'lucide-react';
 import { Station, RadioTab } from '../types';
 import { StationArtwork } from './StationArtwork';
 
@@ -16,7 +16,8 @@ interface SidebarDirectoryProps {
   onSearch: (query: string) => void;
   onSelectGenre: (genre: string) => void;
   onResetPlayCounts: () => void;
-  onBackToPlayer?: () => void;
+  favoriteIds?: string[];
+  onToggleFavoriteStation?: (stationId: string) => void;
 }
 
 const CATEGORIES = [
@@ -79,7 +80,8 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
   onSearch,
   onSelectGenre,
   onResetPlayCounts,
-  onBackToPlayer,
+  favoriteIds = [],
+  onToggleFavoriteStation,
 }) => {
   const [activeTab, setActiveTab] = useState<RadioTab>('mostPlayed');
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,7 +150,6 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
     const tabMatches = baseList.filter(station => matchesStationCategory(station, selectedCategory));
 
     // Also include matching stations from the global pool (including fresh Radio Browser API results for that tag)
-    // so even if a tab had few local matches, the user immediately sees matching stations for the chosen category
     const combinedMap = new Map<string, Station>();
     tabMatches.forEach(s => combinedMap.set(s.id, s));
     allPool
@@ -175,27 +176,15 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
     <aside className="w-full min-[1100px]:w-[400px] h-full flex flex-col bg-slate-900/90 min-[1100px]:bg-slate-900/60 border-r border-white/10 select-none overflow-hidden shrink-0">
       {/* Search & Tabs */}
       <div className="p-3 sm:p-4 border-b border-white/10 space-y-2.5 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder="Buscar emisora o género..."
-              className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
-            />
-          </div>
-
-          {onBackToPlayer && (
-            <button
-              onClick={onBackToPlayer}
-              className="min-[1100px]:hidden min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 shrink-0 border border-slate-700"
-            >
-              <Volume2 className="w-4 h-4 text-red-400" />
-              <span>Volver al Reproductor</span>
-            </button>
-          )}
+        <div className="relative">
+          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            placeholder="Buscar emisora o género..."
+            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
+          />
         </div>
 
         {/* Navigation Tabs */}
@@ -275,8 +264,8 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
         </div>
       )}
 
-      {/* Stations List rendering filteredStations */}
-      <div className="flex-1 overflow-y-auto p-3 grid grid-cols-1 md:grid-cols-2 min-[1100px]:grid-cols-1 gap-2.5 content-start no-scrollbar">
+      {/* Stations List rendering filteredStations (Full vertical scroll with zero bottom bar overlap) */}
+      <div className="flex-1 overflow-y-auto p-3 pb-6 grid grid-cols-1 md:grid-cols-2 min-[1100px]:grid-cols-1 gap-2.5 content-start no-scrollbar">
         {filteredStations.length === 0 ? (
           <div className="col-span-full text-center py-12 text-slate-500 space-y-2">
             <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-40" />
@@ -293,6 +282,7 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
         ) : (
           filteredStations.map(station => {
             const isSelected = currentStation?.id === station.id;
+            const isFav = favoriteIds.includes(station.id);
 
             return (
               <div
@@ -337,6 +327,21 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-1 pl-2">
+                  {onToggleFavoriteStation && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFavoriteStation(station.id);
+                      }}
+                      className={`p-2.5 rounded-xl transition-colors ${
+                        isFav ? 'text-red-500 hover:text-red-400' : 'text-slate-600 hover:text-slate-300'
+                      }`}
+                      title={isFav ? 'Quitar de Favoritos' : 'Añadir a Favoritos'}
+                    >
+                      <Heart className={`w-4 h-4 ${isFav ? 'fill-red-500' : ''}`} />
+                    </button>
+                  )}
+
                   {station.isCustom && (
                     <button
                       onClick={(e) => {

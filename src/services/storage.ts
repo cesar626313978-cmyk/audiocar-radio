@@ -66,8 +66,36 @@ export function resetPlayCounts(): Record<string, number> {
   }
 }
 
+export function getFavoriteIds(): string[] {
+  try {
+    const raw = localStorage.getItem('audiocar_radio_favorite_ids');
+    if (!raw) {
+      const defaults = ['los40-es', 'cadena-ser-es', 'rock-fm-es'];
+      localStorage.setItem('audiocar_radio_favorite_ids', JSON.stringify(defaults));
+      return defaults;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export function toggleFavoriteStation(stationId: string): string[] {
+  try {
+    const current = getFavoriteIds();
+    const updated = current.includes(stationId)
+      ? current.filter(id => id !== stationId)
+      : [stationId, ...current];
+    localStorage.setItem('audiocar_radio_favorite_ids', JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
 export function getMostPlayedStations(allStations: Station[]): Station[] {
   const counts = getPlayCounts();
+  const favSet = new Set(getFavoriteIds());
   // Combine fallback and custom and all known stations
   const map = new Map<string, Station>();
   FALLBACK_STATIONS.forEach(s => map.set(s.id, s));
@@ -79,8 +107,13 @@ export function getMostPlayedStations(allStations: Station[]): Station[] {
     playCount: counts[s.id] || 0,
   }));
 
-  // Sort descending by playCount
-  list.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+  // Sort by pinned favorite first, then descending by playCount
+  list.sort((a, b) => {
+    const aFav = favSet.has(a.id) ? 1 : 0;
+    const bFav = favSet.has(b.id) ? 1 : 0;
+    if (bFav !== aFav) return bFav - aFav;
+    return (b.playCount || 0) - (a.playCount || 0);
+  });
   return list;
 }
 
