@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, TrendingUp, Globe, Clock, Trash2, Radio as RadioIcon, Sparkles, RotateCcw, Volume2 } from 'lucide-react';
 import { Station, RadioTab } from '../types';
-import { StationArtwork } from './StationArtwork';
 
 interface SidebarDirectoryProps {
   currentStation: Station | null;
@@ -306,9 +305,20 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
               >
                 <div className="flex items-center space-x-3.5 min-w-0 flex-1">
                   <div className="relative w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
-                    <StationArtwork station={station} size="sm" />
+                    {station.favicon ? (
+                      <img
+                        src={station.favicon}
+                        alt={station.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <RadioIcon className="w-6 h-6 text-slate-500" />
+                    )}
                     {isSelected && isPlaying && (
-                      <div className="absolute inset-0 z-20 bg-red-950/60 backdrop-blur-[1px] flex items-center justify-center">
+                      <div className="absolute inset-0 bg-red-950/60 backdrop-blur-[1px] flex items-center justify-center">
                         <div className="flex items-end space-x-0.5 h-4">
                           <span className="w-1 bg-red-500 animate-pulse h-full rounded-full"></span>
                           <span className="w-1 bg-red-500 animate-pulse h-2/3 rounded-full delay-75"></span>
