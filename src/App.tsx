@@ -33,6 +33,7 @@ import {
 } from './services/teslaFleet';
 import { audioEngine } from './services/audioEngine';
 import { watchdog, ConnectionStatus } from './services/watchdog';
+import { getStationArtworkCandidates } from './services/stationLogos';
 import { HeaderNav } from './components/HeaderNav';
 import { SidebarDirectory } from './components/SidebarDirectory';
 import { MainPlayer } from './components/MainPlayer';
@@ -198,12 +199,19 @@ export default function App() {
   // MediaSession API Integration
   useEffect(() => {
     if ('mediaSession' in navigator && currentStation) {
+      const candidates = getStationArtworkCandidates(currentStation);
+      const bestLogo = candidates[0] || currentStation.favicon;
+      const tagsList = Array.isArray(currentStation.tags)
+        ? currentStation.tags
+        : typeof currentStation.tags === 'string'
+        ? currentStation.tags.split(',')
+        : [];
       navigator.mediaSession.metadata = new MediaMetadata({
         title: currentStation.name,
         artist: `AudioCar Radio • ${currentStation.country}`,
-        album: currentStation.tags?.[0] ? `Género: ${currentStation.tags[0]}` : 'Streaming en Directo',
-        artwork: currentStation.favicon
-          ? [{ src: currentStation.favicon, sizes: '512x512', type: 'image/png' }]
+        album: tagsList[0] ? `Género: ${tagsList[0]}` : 'Streaming en Directo',
+        artwork: bestLogo
+          ? [{ src: bestLogo, sizes: '512x512', type: bestLogo.startsWith('data:image/svg+xml') ? 'image/svg+xml' : 'image/png' }]
           : [],
       });
 

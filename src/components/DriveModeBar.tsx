@@ -1,6 +1,7 @@
 import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, Radio as RadioIcon, ListMusic, Volume2, Car, Minus, Plus } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, ListMusic, Volume2, Car, Minus, Plus } from 'lucide-react';
 import { Station } from '../types';
+import { StationArtwork } from './StationArtwork';
 
 interface DriveModeBarProps {
   currentStation: Station | null;
@@ -35,11 +36,7 @@ export const DriveModeBar: React.FC<DriveModeBarProps> = ({
         title={mobileView === 'stations' ? 'Volver al Reproductor' : 'Abrir Emisoras / Favoritos'}
       >
         <div className="w-12 h-12 [@media(max-height:750px)]:w-11 [@media(max-height:750px)]:h-11 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
-          {currentStation?.favicon ? (
-            <img src={currentStation.favicon} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <RadioIcon className="w-6 h-6 text-red-500" />
-          )}
+          <StationArtwork station={currentStation} size="sm" />
         </div>
         <div className="min-w-0 text-left">
           <h4 className="font-bold text-sm sm:text-base text-white truncate">

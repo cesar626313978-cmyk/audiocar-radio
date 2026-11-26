@@ -3,6 +3,7 @@ import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Radio as RadioIco
 import { Station } from '../types';
 import { ConnectionStatus } from '../services/watchdog';
 import { AudioWaveVisualizer } from './AudioWaveVisualizer';
+import { StationArtwork } from './StationArtwork';
 
 interface MainPlayerProps {
   currentStation: Station | null;
@@ -121,23 +122,9 @@ export const MainPlayer: React.FC<MainPlayerProps> = ({
           )}
 
           <div className="relative w-44 h-44 md:w-56 md:h-56 [@media(max-height:750px)]:w-28 [@media(max-height:750px)]:h-28 [@media(max-height:600px)]:w-20 [@media(max-height:600px)]:h-20 rounded-3xl bg-slate-900 border-2 border-slate-800 shadow-2xl shadow-red-950/40 flex items-center justify-center overflow-hidden transition-all">
-            {currentStation?.favicon ? (
-              <img
-                src={currentStation.favicon}
-                alt={currentStation.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center p-4 text-center">
-                <RadioIcon className="w-14 h-14 [@media(max-height:750px)]:w-10 [@media(max-height:750px)]:h-10 text-red-500 mb-2 animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">AudioCar High-Res</span>
-              </div>
-            )}
+            <StationArtwork station={currentStation} size="lg" />
 
-            <div className="absolute bottom-2 px-2.5 py-0.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-slate-800 text-[9px] font-mono tracking-widest text-red-400 uppercase">
+            <div className="absolute bottom-2 z-20 px-2.5 py-0.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-slate-800 text-[9px] font-mono tracking-widest text-red-400 uppercase">
               {connectionStatus === 'online' ? '● En Directo' : '○ Reconectando'}
             </div>
           </div>
