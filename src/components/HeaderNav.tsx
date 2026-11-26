@@ -9,6 +9,8 @@ interface HeaderNavProps {
   connectionStatus: ConnectionStatus;
   onOpenEQ: () => void;
   onOpenCustom: () => void;
+  mobileView: 'player' | 'stations';
+  onToggleMobileView: () => void;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
@@ -17,6 +19,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   connectionStatus,
   onOpenEQ,
   onOpenCustom,
+  mobileView,
+  onToggleMobileView,
 }) => {
   const cycleTheme = () => {
     if (theme === 'dark') onThemeChange('light');
@@ -25,22 +29,41 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   };
 
   return (
-    <header className="h-16 px-4 md:px-6 flex items-center justify-between border-b border-white/10 bg-slate-950/80 backdrop-blur-md text-slate-100 select-none z-30 shrink-0">
-      {/* Brand / Logo */}
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-900/30">
-          <Radio className="w-6 h-6 text-white animate-pulse" />
+    <header className="h-16 px-3 md:px-6 flex items-center justify-between border-b border-white/10 bg-slate-950/90 backdrop-blur-md text-slate-100 select-none z-30 shrink-0 gap-2">
+      {/* Left: Brand / Logo + Conmutador de vista rápido (< 1100px) */}
+      <div className="flex items-center space-x-2 md:space-x-4 min-w-0">
+        <div className="flex items-center space-x-2.5 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-900/30 shrink-0">
+            <Radio className="w-6 h-6 text-white animate-pulse" />
+          </div>
+          <div className="hidden xs:block">
+            <h1 className="font-bold text-base md:text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent leading-tight">
+              AudioCar <span className="text-red-500 font-extrabold">Radio</span>
+            </h1>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-mono hidden sm:block">Tesla OS Stream</p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            AudioCar <span className="text-red-500 font-extrabold">Radio</span>
-          </h1>
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">Tesla OS Stream</p>
-        </div>
+
+        {/* Conmutador de vista rápido para conducción en pantallas < 1100px */}
+        <button
+          onClick={onToggleMobileView}
+          className={`min-[1100px]:hidden min-h-[48px] px-4 py-2 rounded-2xl font-bold text-xs sm:text-sm flex items-center space-x-2 transition-all active:scale-95 shadow-lg border shrink-0 ${
+            mobileView === 'stations'
+              ? 'bg-gradient-to-r from-red-600 to-amber-500 text-white border-red-400/50 shadow-red-950/50'
+              : 'bg-slate-900 hover:bg-slate-800 text-slate-100 border-red-500/40 shadow-red-950/20'
+          }`}
+          title="Alternar entre Emisoras y Reproductor"
+        >
+          {mobileView === 'player' ? (
+            <span>📻 Emisoras / Favoritos</span>
+          ) : (
+            <span>🔊 Reproductor</span>
+          )}
+        </button>
       </div>
 
-      {/* Connection & Signal Badge */}
-      <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 text-xs">
+      {/* Center: Connection & Signal Badge */}
+      <div className="hidden xl:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 text-xs shrink-0">
         {connectionStatus === 'online' && (
           <>
             <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
@@ -67,11 +90,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         )}
       </div>
 
-      {/* Action Controls */}
-      <div className="flex items-center space-x-2 md:space-x-3">
+      {/* Right: Action Controls */}
+      <div className="flex items-center space-x-1.5 md:space-x-2.5 shrink-0">
         <button
           onClick={onOpenCustom}
-          className="px-3 py-2 rounded-lg bg-red-600/25 hover:bg-red-600/35 border border-red-500/30 text-red-400 text-xs font-medium transition-colors flex items-center space-x-1.5"
+          className="min-h-[44px] px-3 py-2 rounded-xl bg-red-600/25 hover:bg-red-600/35 border border-red-500/30 text-red-400 text-xs font-semibold transition-colors flex items-center space-x-1.5"
           title="Añadir URL de Emisora Personalizada"
         >
           <span>+ Emisora</span>
@@ -79,7 +102,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
         <button
           onClick={onOpenEQ}
-          className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors"
+          className="min-h-[44px] p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors flex items-center justify-center"
           title="Ecualizador de Cabina y Búfer"
         >
           <Sliders className="w-5 h-5" />
@@ -87,7 +110,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
         <button
           onClick={() => { window.location.href = '/'; }}
-          className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors flex items-center space-x-1.5 px-3"
+          className="min-h-[44px] p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors flex items-center space-x-1.5 px-3"
           title="Volver al Launcher / Hub principal"
         >
           <Home className="w-4 h-4 text-red-500" />
@@ -96,7 +119,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
         <button
           onClick={cycleTheme}
-          className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors flex items-center space-x-1"
+          className="min-h-[44px] p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors flex items-center justify-center"
           title={`Tema: ${theme}`}
         >
           {theme === 'dark' ? <Moon className="w-5 h-5 text-indigo-400" /> : <Sun className="w-5 h-5 text-amber-400" />}

@@ -29,3 +29,13 @@ export interface EQSettings {
 }
 
 export type RadioTab = 'mostPlayed' | 'spain' | 'world' | 'recent';
+
+export interface TeslaSession {
+  access_token: string;
+  refresh_token?: string;
+  vehicle_id: string | number;
+  vin?: string;
+  vehicle_name?: string;
+  expires_at?: number; // timestamp in ms or seconds
+  expires_in?: number;
+}

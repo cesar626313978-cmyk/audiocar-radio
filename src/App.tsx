@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Station, ThemeMode, EQSettings, PreRollBuffer } from './types';
+import { Station, ThemeMode, EQSettings, PreRollBuffer, TeslaSession } from './types';
 import {
   getMostPlayedStations,
   incrementPlayCount,
@@ -15,6 +15,8 @@ import {
   savePreRollBuffer,
   getThemeMode,
   saveThemeMode,
+  getReverseDimEnabled,
+  saveReverseDimEnabled,
 } from './services/storage';
 import {
   FALLBACK_STATIONS,
@@ -22,6 +24,13 @@ import {
   getSpainStations,
   getWorldStations,
 } from './services/radioBrowser';
+import {
+  getTeslaSession,
+  sendTeslaMediaCommand,
+  sendMultipleVolumeCommands,
+  getTeslaDriveState,
+  refreshTeslaTokenIfNeeded,
+} from './services/teslaFleet';
 import { audioEngine } from './services/audioEngine';
 import { watchdog, ConnectionStatus } from './services/watchdog';
 import { HeaderNav } from './components/HeaderNav';
@@ -50,11 +59,79 @@ export default function App() {
 
   const [isEQOpen, setIsEQOpen] = useState(false);
   const [isCustomOpen, setIsCustomOpen] = useState(false);
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'player' | 'stations'>('player');
+
+  // Tesla Fleet API State
+  const [teslaSession, setTeslaSession] = useState<TeslaSession | null>(() => getTeslaSession());
+  const [reverseDimEnabled, setReverseDimEnabled] = useState<boolean>(() => getReverseDimEnabled());
+  const [activeShiftState, setActiveShiftState] = useState<'P' | 'D' | 'R' | 'N' | null>(null);
+  const [isReverseDimmed, setIsReverseDimmed] = useState<boolean>(false);
+  const isReverseDimmedRef = useRef<boolean>(false);
 
   // Play count timer ref (increments play count after 15 seconds of continuous playback)
   const playTimerRef = useRef<any>(null);
   const playCountRecordedRef = useRef<boolean>(false);
+
+  // Keep Tesla session synced with localStorage ('audiocar_tesla_session')
+  useEffect(() => {
+    const syncTeslaSession = () => {
+      setTeslaSession(getTeslaSession());
+    };
+    window.addEventListener('storage', syncTeslaSession);
+    window.addEventListener('focus', syncTeslaSession);
+    const interval = setInterval(syncTeslaSession, 5000);
+    return () => {
+      window.removeEventListener('storage', syncTeslaSession);
+      window.removeEventListener('focus', syncTeslaSession);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Proactive token refresh check when session is present
+  useEffect(() => {
+    if (!teslaSession) return;
+    refreshTeslaTokenIfNeeded(false).then((updated) => {
+      if (updated && updated.access_token !== teslaSession.access_token) {
+        setTeslaSession(updated);
+      }
+    });
+  }, [teslaSession]);
+
+  // Poll Tesla drive_state every 4 seconds when reverseDimEnabled is active and Tesla session exists
+  useEffect(() => {
+    if (!reverseDimEnabled || !teslaSession) {
+      setActiveShiftState(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const checkDriveState = async () => {
+      const driveState = await getTeslaDriveState();
+      if (isCancelled || !driveState) return;
+
+      const shift = driveState.shift_state;
+      setActiveShiftState(shift);
+
+      if (shift === 'R' && !isReverseDimmedRef.current) {
+        isReverseDimmedRef.current = true;
+        setIsReverseDimmed(true);
+        await sendMultipleVolumeCommands('media_volume_down', 3);
+      } else if ((shift === 'D' || shift === 'P') && isReverseDimmedRef.current) {
+        isReverseDimmedRef.current = false;
+        setIsReverseDimmed(false);
+        await sendMultipleVolumeCommands('media_volume_up', 3);
+      }
+    };
+
+    checkDriveState();
+    const timer = setInterval(checkDriveState, 4000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(timer);
+    };
+  }, [reverseDimEnabled, teslaSession]);
 
   // Initial load of Spain and World stations
   useEffect(() => {
@@ -145,6 +222,9 @@ export default function App() {
 
     audioEngine.loadStream(station.url, buffer);
     watchdog.start(station.url, buffer);
+
+    // Regresa automáticamente a la vista del reproductor al pulsar una emisora
+    setMobileView('player');
   };
 
   const handleTogglePlay = () => {
@@ -162,6 +242,24 @@ export default function App() {
       watchdog.start(currentStation.url, buffer);
       setIsPlaying(true);
     }
+
+    // Sincronizar con Tesla Fleet API command/media_toggle_playback si existe sesión activa
+    if (getTeslaSession()) {
+      sendTeslaMediaCommand('media_toggle_playback').catch(console.warn);
+    }
+  };
+
+  const handleTeslaVolumeDown = () => {
+    sendTeslaMediaCommand('media_volume_down').catch(console.warn);
+  };
+
+  const handleTeslaVolumeUp = () => {
+    sendTeslaMediaCommand('media_volume_up').catch(console.warn);
+  };
+
+  const handleToggleReverseDim = (enabled: boolean) => {
+    setReverseDimEnabled(enabled);
+    saveReverseDimEnabled(enabled);
   };
 
   const handleNextStation = () => {
@@ -245,6 +343,12 @@ export default function App() {
     }
   };
 
+  const toggleMobileView = () => {
+    setMobileView(prev => (prev === 'player' ? 'stations' : 'player'));
+  };
+
+  const hasValidTeslaSession = Boolean(teslaSession && teslaSession.access_token && teslaSession.vehicle_id);
+
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
       <HeaderNav
@@ -253,21 +357,21 @@ export default function App() {
         connectionStatus={connectionStatus}
         onOpenEQ={() => setIsEQOpen(true)}
         onOpenCustom={() => setIsCustomOpen(true)}
+        mobileView={mobileView}
+        onToggleMobileView={toggleMobileView}
       />
 
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative min-h-0">
+        {/* Panel de Emisoras / Favoritos: Siempre visible en >= 1100px, o a pantalla completa en < 1100px cuando mobileView === 'stations' */}
         <div
-          className={`absolute lg:relative inset-y-0 left-0 z-30 transition-transform duration-300 transform ${
-            isMobileDrawerOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          }`}
+          className={`${
+            mobileView === 'stations' ? 'flex w-full' : 'hidden'
+          } min-[1100px]:flex min-[1100px]:w-[400px] h-full shrink-0`}
         >
           <SidebarDirectory
             currentStation={currentStation}
             isPlaying={isPlaying}
-            onSelectStation={(st) => {
-              handleSelectStation(st);
-              setIsMobileDrawerOpen(false);
-            }}
+            onSelectStation={handleSelectStation}
             mostPlayed={mostPlayed}
             recent={recent}
             customStations={customStations}
@@ -277,36 +381,49 @@ export default function App() {
             onSearch={handleSearch}
             onSelectGenre={handleSelectGenre}
             onResetPlayCounts={handleResetPlayCounts}
+            onBackToPlayer={() => setMobileView('player')}
           />
         </div>
 
-        {isMobileDrawerOpen && (
-          <div
-            className="fixed inset-0 bg-slate-950/70 z-20 lg:hidden backdrop-blur-sm"
-            onClick={() => setIsMobileDrawerOpen(false)}
-          ></div>
-        )}
-
-        <MainPlayer
-          currentStation={currentStation}
-          isPlaying={isPlaying}
-          onTogglePlay={handleTogglePlay}
-          onNextStation={handleNextStation}
-          onPrevStation={handlePrevStation}
-          volume={volume}
-          onVolumeChange={handleVolumeChange}
-          muted={muted}
-          onToggleMute={handleToggleMute}
-          connectionStatus={connectionStatus}
-        />
+        {/* Vista del Reproductor: Siempre visible en >= 1100px, o en < 1100px cuando mobileView === 'player' */}
+        <div
+          className={`${
+            mobileView === 'player' ? 'flex' : 'hidden'
+          } min-[1100px]:flex flex-1 h-full min-w-0 overflow-hidden`}
+        >
+          <MainPlayer
+            currentStation={currentStation}
+            isPlaying={isPlaying}
+            onTogglePlay={handleTogglePlay}
+            onNextStation={handleNextStation}
+            onPrevStation={handlePrevStation}
+            volume={volume}
+            onVolumeChange={handleVolumeChange}
+            muted={muted}
+            onToggleMute={handleToggleMute}
+            connectionStatus={connectionStatus}
+            onOpenStations={() => setMobileView('stations')}
+            hasTeslaSession={hasValidTeslaSession}
+            onTeslaVolumeDown={handleTeslaVolumeDown}
+            onTeslaVolumeUp={handleTeslaVolumeUp}
+            activeShiftState={activeShiftState}
+            isReverseDimmed={isReverseDimmed}
+          />
+        </div>
       </div>
 
+      {/* Barra inferior permanente en pantallas < 1100px (Tesla en marcha) */}
       <DriveModeBar
         currentStation={currentStation}
         isPlaying={isPlaying}
         onTogglePlay={handleTogglePlay}
+        onPrevStation={handlePrevStation}
         onNextStation={handleNextStation}
-        onToggleDrawer={() => setIsMobileDrawerOpen(true)}
+        mobileView={mobileView}
+        onToggleMobileView={toggleMobileView}
+        hasTeslaSession={hasValidTeslaSession}
+        onTeslaVolumeDown={handleTeslaVolumeDown}
+        onTeslaVolumeUp={handleTeslaVolumeUp}
       />
 
       <AudioEqualizerModal
@@ -316,6 +433,9 @@ export default function App() {
         onUpdateEQ={handleUpdateEQ}
         buffer={buffer}
         onUpdateBuffer={handleUpdateBuffer}
+        reverseDimEnabled={reverseDimEnabled}
+        onToggleReverseDim={handleToggleReverseDim}
+        hasTeslaSession={hasValidTeslaSession}
       />
 
       <CustomStationModal

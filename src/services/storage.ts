@@ -8,7 +8,23 @@ const KEYS = {
   EQ: 'audiocar_radio_eq',
   BUFFER: 'audiocar_radio_buffer',
   THEME: 'audiocar_radio_theme',
+  REVERSE_DIM: 'audiocar_radio_reverse_dim',
 };
+
+export function getReverseDimEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem(KEYS.REVERSE_DIM);
+    return raw ? JSON.parse(raw) === true : false;
+  } catch {
+    return false;
+  }
+}
+
+export function saveReverseDimEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(KEYS.REVERSE_DIM, JSON.stringify(enabled));
+  } catch {}
+}
 
 export function getPlayCounts(): Record<string, number> {
   try {

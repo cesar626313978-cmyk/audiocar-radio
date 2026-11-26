@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, TrendingUp, Globe, Clock, Play, Trash2, Radio as RadioIcon, Sparkles, RotateCcw } from 'lucide-react';
+import { Search, TrendingUp, Globe, Clock, Trash2, Radio as RadioIcon, Sparkles, RotateCcw, Volume2 } from 'lucide-react';
 import { Station, RadioTab } from '../types';
 
 interface SidebarDirectoryProps {
@@ -15,6 +15,7 @@ interface SidebarDirectoryProps {
   onSearch: (query: string) => void;
   onSelectGenre: (genre: string) => void;
   onResetPlayCounts: () => void;
+  onBackToPlayer?: () => void;
 }
 
 const GENRES = [
@@ -42,6 +43,7 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
   onSearch,
   onSelectGenre,
   onResetPlayCounts,
+  onBackToPlayer,
 }) => {
   const [activeTab, setActiveTab] = useState<RadioTab>('mostPlayed');
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,8 +63,12 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
   const getDisplayStations = (): Station[] => {
     if (searchQuery.trim()) {
       const all = [...mostPlayed, ...spainStations, ...worldStations, ...customStations];
+      const map = new Map<string, Station>();
+      all.forEach(s => map.set(s.id, s));
       const q = searchQuery.toLowerCase();
-      return all.filter(s => s.name.toLowerCase().includes(q) || s.tags?.some(t => t.includes(q)));
+      return Array.from(map.values()).filter(
+        s => s.name.toLowerCase().includes(q) || s.tags?.some(t => t.includes(q))
+      );
     }
 
     switch (activeTab) {
@@ -82,69 +88,81 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
   const stations = getDisplayStations();
 
   return (
-    <aside className="w-full lg:w-96 flex flex-col bg-slate-900/60 border-r border-white/10 select-none overflow-hidden shrink-0">
+    <aside className="w-full min-[1100px]:w-[400px] h-full flex flex-col bg-slate-900/90 min-[1100px]:bg-slate-900/60 border-r border-white/10 select-none overflow-hidden shrink-0">
       {/* Search & Tabs */}
-      <div className="p-4 border-b border-white/10 space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder="Buscar emisora o género..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
-          />
+      <div className="p-3 sm:p-4 border-b border-white/10 space-y-2.5 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Buscar emisora o género..."
+              className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
+            />
+          </div>
+
+          {onBackToPlayer && (
+            <button
+              onClick={onBackToPlayer}
+              className="min-[1100px]:hidden min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 shrink-0 border border-slate-700"
+            >
+              <Volume2 className="w-4 h-4 text-red-400" />
+              <span>Volver al Reproductor</span>
+            </button>
+          )}
         </div>
 
         {/* Navigation Tabs */}
-        <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <div className="grid grid-cols-4 gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
           <button
             onClick={() => setActiveTab('mostPlayed')}
-            className={`py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center transition-all ${
+            className={`min-h-[48px] py-2 rounded-lg text-xs font-semibold flex flex-col items-center justify-center transition-all ${
               activeTab === 'mostPlayed' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <TrendingUp className="w-3.5 h-3.5 mb-0.5" />
-            <span>Top</span>
+            <TrendingUp className="w-4 h-4 mb-0.5" />
+            <span>Favoritos / Top</span>
           </button>
           <button
             onClick={() => setActiveTab('spain')}
-            className={`py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center transition-all ${
+            className={`min-h-[48px] py-2 rounded-lg text-xs font-semibold flex flex-col items-center justify-center transition-all ${
               activeTab === 'spain' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <RadioIcon className="w-3.5 h-3.5 mb-0.5" />
+            <RadioIcon className="w-4 h-4 mb-0.5" />
             <span>España</span>
           </button>
           <button
             onClick={() => setActiveTab('world')}
-            className={`py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center transition-all ${
+            className={`min-h-[48px] py-2 rounded-lg text-xs font-semibold flex flex-col items-center justify-center transition-all ${
               activeTab === 'world' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Globe className="w-3.5 h-3.5 mb-0.5" />
+            <Globe className="w-4 h-4 mb-0.5" />
             <span>Mundial</span>
           </button>
           <button
             onClick={() => setActiveTab('recent')}
-            className={`py-2 rounded-lg text-xs font-medium flex flex-col items-center justify-center transition-all ${
+            className={`min-h-[48px] py-2 rounded-lg text-xs font-semibold flex flex-col items-center justify-center transition-all ${
               activeTab === 'recent' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Clock className="w-3.5 h-3.5 mb-0.5" />
+            <Clock className="w-4 h-4 mb-0.5" />
             <span>Recientes</span>
           </button>
         </div>
 
         {/* Genre Chips */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
+        <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
           {GENRES.map(genre => (
             <button
               key={genre}
               onClick={() => handleGenreClick(genre)}
-              className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
                 selectedGenre === genre
-                  ? 'bg-white text-slate-950 font-semibold'
+                  ? 'bg-white text-slate-950 font-bold'
                   : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
               }`}
             >
@@ -156,23 +174,23 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
 
       {/* Subheader for Most Played with Reset Button */}
       {activeTab === 'mostPlayed' && (
-        <div className="px-4 py-2 bg-slate-950/40 border-b border-white/5 flex items-center justify-between text-xs text-slate-400">
-          <span>Ordenadas por uso automático</span>
+        <div className="px-4 py-2 bg-slate-950/40 border-b border-white/5 flex items-center justify-between text-xs text-slate-400 shrink-0">
+          <span>Emisoras más escuchadas / Favoritos</span>
           <button
             onClick={onResetPlayCounts}
-            className="flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
             title="Reiniciar contador de reproducciones"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3.5 h-3.5" />
             <span>Reiniciar</span>
           </button>
         </div>
       )}
 
-      {/* Stations List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar">
+      {/* Stations List (Responsive grid in full-screen <1100px view, single list in sidebar >=1100px) */}
+      <div className="flex-1 overflow-y-auto p-3 grid grid-cols-1 md:grid-cols-2 min-[1100px]:grid-cols-1 gap-2.5 content-start no-scrollbar">
         {stations.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">
+          <div className="col-span-full text-center py-12 text-slate-500">
             <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-40" />
             <p className="text-sm">No se encontraron emisoras</p>
           </div>
@@ -184,14 +202,14 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
               <div
                 key={station.id}
                 onClick={() => onSelectStation(station)}
-                className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                className={`group min-h-[60px] flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer active:scale-[0.99] ${
                   isSelected
-                    ? 'bg-red-600/10 border-red-500/50 shadow-lg shadow-red-950/20'
-                    : 'bg-slate-950/40 border-slate-800/60 hover:bg-slate-800/40 hover:border-slate-700'
+                    ? 'bg-red-600/15 border-red-500/60 shadow-lg shadow-red-950/30'
+                    : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/50 hover:border-slate-700'
                 }`}
               >
-                <div className="flex items-center space-x-3 min-w-0 flex-1">
-                  <div className="relative w-11 h-11 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                <div className="flex items-center space-x-3.5 min-w-0 flex-1">
+                  <div className="relative w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
                     {station.favicon ? (
                       <img
                         src={station.favicon}
@@ -202,7 +220,7 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
                         }}
                       />
                     ) : (
-                      <RadioIcon className="w-5 h-5 text-slate-500" />
+                      <RadioIcon className="w-6 h-6 text-slate-500" />
                     )}
                     {isSelected && isPlaying && (
                       <div className="absolute inset-0 bg-red-950/60 backdrop-blur-[1px] flex items-center justify-center">
@@ -216,17 +234,17 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <h3 className={`font-semibold text-sm truncate ${isSelected ? 'text-red-400' : 'text-slate-200'}`}>
+                    <h3 className={`font-bold text-sm sm:text-base truncate ${isSelected ? 'text-red-400' : 'text-slate-100'}`}>
                       {station.name}
                     </h3>
-                    <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-                      <span className="uppercase">{station.countrycode || station.country}</span>
+                    <div className="flex items-center space-x-2 text-xs text-slate-400">
+                      <span className="uppercase font-medium">{station.countrycode || station.country}</span>
                       <span>•</span>
                       <span>{station.bitrate ? `${station.bitrate} kbps` : '128 kbps'}</span>
                       {station.playCount !== undefined && station.playCount > 0 && (
                         <>
                           <span>•</span>
-                          <span className="text-red-400 font-mono">▶ {station.playCount}</span>
+                          <span className="text-red-400 font-mono font-semibold">▶ {station.playCount}</span>
                         </>
                       )}
                     </div>
@@ -240,7 +258,7 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
                         e.stopPropagation();
                         onDeleteCustom(station.id);
                       }}
-                      className="p-2 rounded-lg text-slate-600 hover:text-red-400 transition-colors"
+                      className="p-2.5 rounded-xl text-slate-500 hover:text-red-400 transition-colors"
                       title="Eliminar emisora personalizada"
                     >
                       <Trash2 className="w-4 h-4" />

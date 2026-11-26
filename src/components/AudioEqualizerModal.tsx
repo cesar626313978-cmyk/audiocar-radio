@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Sliders, X, Shield, Zap } from 'lucide-react';
+import React from 'react';
+import { Sliders, X, Shield, Car } from 'lucide-react';
 import { EQSettings, PreRollBuffer } from '../types';
 
 interface AudioEqualizerModalProps {
@@ -9,6 +9,9 @@ interface AudioEqualizerModalProps {
   onUpdateEQ: (eq: EQSettings) => void;
   buffer: PreRollBuffer;
   onUpdateBuffer: (buf: PreRollBuffer) => void;
+  reverseDimEnabled: boolean;
+  onToggleReverseDim: (enabled: boolean) => void;
+  hasTeslaSession: boolean;
 }
 
 export const AudioEqualizerModal: React.FC<AudioEqualizerModalProps> = ({
@@ -18,6 +21,9 @@ export const AudioEqualizerModal: React.FC<AudioEqualizerModalProps> = ({
   onUpdateEQ,
   buffer,
   onUpdateBuffer,
+  reverseDimEnabled,
+  onToggleReverseDim,
+  hasTeslaSession,
 }) => {
   if (!isOpen) return null;
 
@@ -36,7 +42,7 @@ export const AudioEqualizerModal: React.FC<AudioEqualizerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md select-none animate-fadeIn">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
+      <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center space-x-3">
@@ -44,8 +50,8 @@ export const AudioEqualizerModal: React.FC<AudioEqualizerModalProps> = ({
               <Sliders className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Ecualizador de Cabina y Búfer</h2>
-              <p className="text-xs text-slate-400">Web Audio API • AGC Dinámico & Anti-Túneles</p>
+              <h2 className="text-lg font-bold text-white">Ecualizador de Cabina y Ajustes</h2>
+              <p className="text-xs text-slate-400">Web Audio API • AGC Dinámico & Tesla Fleet API</p>
             </div>
           </div>
           <button
@@ -166,6 +172,48 @@ export const AudioEqualizerModal: React.FC<AudioEqualizerModalProps> = ({
                 {sec === 2 ? 'Estándar (2s)' : sec === 5 ? 'Carretera (5s)' : 'Anti-Túnel (10s)'}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Tesla Fleet API: Atenuación automática en Marcha Atrás (R) */}
+        <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start space-x-3">
+              <div className="p-2 rounded-xl bg-red-600/15 text-red-400 mt-0.5 shrink-0">
+                <Car className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-bold text-white">
+                    Atenuar volumen al aparcar (Marcha Atrás)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Baja automáticamente 3 puntos el volumen del Tesla al poner la marcha <span className="text-red-400 font-mono font-bold">R</span> y lo restaura al pasar a <span className="text-emerald-400 font-mono font-bold">D</span> o <span className="text-slate-200 font-mono font-bold">P</span>.
+                </p>
+                {!hasTeslaSession && (
+                  <p className="text-[10px] text-amber-400/90 mt-1 font-medium">
+                    Requiere sesión activa de Tesla Fleet (`audiocar_tesla_session`).
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={reverseDimEnabled}
+              onClick={() => onToggleReverseDim(!reverseDimEnabled)}
+              className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                reverseDimEnabled ? 'bg-red-600' : 'bg-slate-800'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  reverseDimEnabled ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
         </div>
 
