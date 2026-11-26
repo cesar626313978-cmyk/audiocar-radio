@@ -18,6 +18,7 @@ interface SidebarDirectoryProps {
   onResetPlayCounts: () => void;
   favoriteIds?: string[];
   onToggleFavoriteStation?: (stationId: string) => void;
+  onBackToPlayer?: () => void;
 }
 
 const CATEGORIES = [

@@ -128,9 +128,17 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: 'spa',
     });
+    app.use((req, _res, next) => {
+      if (req.url === '/' || req.url === '/index.html') {
+        req.url = '/radio/';
+      }
+      next();
+    });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(__dirname, 'dist');
+    app.use('/radio/assets', express.static(path.join(distPath, 'assets')));
+    app.use('/assets', express.static(path.join(distPath, 'assets')));
     app.use('/radio', express.static(distPath));
     app.use(express.static(distPath));
     app.get('*all', (_req, res) => {
