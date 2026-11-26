@@ -174,6 +174,32 @@ export default function App() {
     audioEngine.setEQ(eq);
   }, []);
 
+  // Global listener for parent Launcher volume messages ({ type: 'AUDIOCAR_SET_VOLUME', level })
+  useEffect(() => {
+    const handleLauncherMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'AUDIOCAR_SET_VOLUME') {
+        const rawLevel = Number(event.data.level);
+        if (!Number.isNaN(rawLevel)) {
+          const clampedLevel = Math.max(0, Math.min(1, rawLevel));
+          const audioEl = audioEngine.getAudioElement();
+          audioEl.volume = clampedLevel;
+          audioEngine.setVolume(clampedLevel);
+          setVolume(clampedLevel);
+          if (clampedLevel > 0) {
+            audioEl.muted = false;
+            audioEngine.setMuted(false);
+            setMuted(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handleLauncherMessage);
+    return () => {
+      window.removeEventListener('message', handleLauncherMessage);
+    };
+  }, []);
+
   // Play count 15-second tracking timer
   useEffect(() => {
     if (isPlaying && currentStation) {
