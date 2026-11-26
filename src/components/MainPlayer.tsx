@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Radio as RadioIcon, Signal, Sparkles, Car, Minus, Plus } from 'lucide-react';
 import { Station } from '../types';
 import { ConnectionStatus } from '../services/watchdog';
+import { AudioWaveVisualizer } from './AudioWaveVisualizer';
 
 interface MainPlayerProps {
   currentStation: Station | null;
@@ -153,21 +154,11 @@ export const MainPlayer: React.FC<MainPlayerProps> = ({
           </p>
         </div>
 
-        {/* Live Audio Waves Equalizer Animation */}
-        <div className="flex items-center space-x-1 h-8 [@media(max-height:750px)]:h-5 w-48 justify-center shrink-0">
-          {[...Array(16)].map((_, i) => (
-            <span
-              key={i}
-              className={`w-1.5 rounded-full transition-all duration-300 ${
-                isPlaying ? 'bg-gradient-to-t from-red-600 to-amber-400 animate-pulse' : 'bg-slate-800 h-1.5'
-              }`}
-              style={{
-                height: isPlaying ? `${Math.max(10, Math.sin(i + Date.now() / 200) * 20 + 14)}px` : '6px',
-                animationDelay: `${i * 75}ms`,
-              }}
-            ></span>
-          ))}
-        </div>
+        {/* High-Definition 60 FPS Symmetric 56-Bar Canvas Audio Wave Visualizer */}
+        <AudioWaveVisualizer
+          isPlaying={isPlaying}
+          connectionStatus={connectionStatus}
+        />
       </div>
 
       {/* Giant Touch Controls & Volume Bar */}

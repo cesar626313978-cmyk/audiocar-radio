@@ -12,7 +12,9 @@ export interface Station {
   votes?: number;
   codec?: string;
   bitrate?: number;
-  tags?: string[];
+  tags?: string[] | string;
+  genre?: string;
+  category?: string;
   isCustom?: boolean;
   playCount?: number;
 }

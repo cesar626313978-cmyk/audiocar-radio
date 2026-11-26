@@ -171,7 +171,10 @@ export async function searchStations(query: string): Promise<Station[]> {
   } catch (e) {
     console.warn('API search failed, falling back to local filter', e);
     const q = query.toLowerCase();
-    return FALLBACK_STATIONS.filter(s => s.name.toLowerCase().includes(q) || s.tags?.some(t => t.includes(q)));
+    return FALLBACK_STATIONS.filter(s => {
+      const tagsList = Array.isArray(s.tags) ? s.tags : typeof s.tags === 'string' ? s.tags.split(',') : [];
+      return s.name.toLowerCase().includes(q) || tagsList.some((t: string) => t.toLowerCase().includes(q));
+    });
   }
 }
 

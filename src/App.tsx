@@ -331,13 +331,18 @@ export default function App() {
   };
 
   const handleSelectGenre = async (genre: string) => {
-    if (!genre) {
-      getWorldStations().then(setWorldStations);
+    const cleanTag = genre.trim().toLowerCase();
+    if (!cleanTag || cleanTag === 'todos') {
+      getWorldStations().then((res) => {
+        setWorldStations(res);
+        setMostPlayed(getMostPlayedStations([...spainStations, ...res]));
+      }).catch(console.warn);
       return;
     }
     try {
-      const results = await getWorldStations(genre);
+      const results = await getWorldStations(cleanTag);
       setWorldStations(results);
+      setMostPlayed(getMostPlayedStations([...spainStations, ...results]));
     } catch (e) {
       console.warn('Genre fetch error', e);
     }

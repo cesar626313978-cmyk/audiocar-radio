@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, TrendingUp, Globe, Clock, Trash2, Radio as RadioIcon, Sparkles, RotateCcw, Volume2 } from 'lucide-react';
 import { Station, RadioTab } from '../types';
 
@@ -18,17 +18,52 @@ interface SidebarDirectoryProps {
   onBackToPlayer?: () => void;
 }
 
-const GENRES = [
-  'Todos',
-  'pop',
-  'rock',
-  'news',
-  'jazz',
-  'electronic',
-  'lofi',
-  'classical',
-  '80s',
+const CATEGORIES = [
+  'TODOS',
+  'POP',
+  'ROCK',
+  'NEWS',
+  'JAZZ',
+  'ELECTRONIC',
+  'LOFI',
+  'CLASSICAL',
+  '80S',
 ];
+
+const CATEGORY_EQUIVALENTS: Record<string, string[]> = {
+  pop: ['pop', 'top40', 'top 40', 'hits', 'éxitos', 'exitos', 'latin pop', 'eurohits', 'los 40', 'los40', 'europa fm', 'kiss fm'],
+  rock: ['rock', 'classic rock', 'metal', 'hard rock', 'indie', 'alternative', 'punk', 'grunge', 'rock fm'],
+  news: ['news', 'noticias', 'talk', 'radio hablada', 'informativos', 'actualidad', 'deportes', 'sports', 'public', 'cultura', 'culture', 'ser', 'cope', 'onda cero', 'rne', 'bbc'],
+  jazz: ['jazz', 'blues', 'swing', 'bossa', 'smooth jazz', 'instrumental', 'soul'],
+  electronic: ['electronic', 'electrónica', 'electronica', 'dance', 'house', 'techno', 'trance', 'edm', 'club', 'dj', 'bikinifm', 'bikini fm', 'flaix', 'máxima', 'maxima', 'loca fm'],
+  lofi: ['lofi', 'lo-fi', 'chill', 'chillout', 'ambient', 'study', 'relax', 'downtempo'],
+  classical: ['classical', 'clásica', 'clasica', 'orchestral', 'opera', 'ópera', 'symphony', 'piano', 'baroque'],
+  '80s': ['80s', '90s', '70s', '80', '90', 'retro', 'oldies', 'classic hits', 'vintage', 'nostalgia', 'kiss fm'],
+};
+
+function matchesStationCategory(station: Station, selectedCategory: string): boolean {
+  const cat = selectedCategory.trim().toLowerCase();
+  if (!cat || cat === 'todos') return true;
+
+  const keywords = CATEGORY_EQUIVALENTS[cat] || [cat];
+
+  const tagsText = Array.isArray(station.tags)
+    ? station.tags.join(' ')
+    : typeof station.tags === 'string'
+    ? station.tags
+    : '';
+
+  const searchableText = [
+    station.name || '',
+    station.genre || '',
+    station.category || '',
+    tagsText,
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  return keywords.some(kw => searchableText.includes(kw.toLowerCase()));
+}
 
 export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
   currentStation,
@@ -47,7 +82,7 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<RadioTab>('mostPlayed');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGenre, setSelectedGenre] = useState('Todos');
+  const [selectedCategory, setSelectedCategory] = useState('TODOS');
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
@@ -55,37 +90,85 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
     onSearch(q);
   };
 
-  const handleGenreClick = (genre: string) => {
-    setSelectedGenre(genre);
-    onSelectGenre(genre === 'Todos' ? '' : genre);
+  const handleCategoryClick = (category: string) => {
+    setSelectedCategory(category);
+    const normalizedTag = category === 'TODOS' ? '' : category.toLowerCase();
+    onSelectGenre(normalizedTag);
   };
 
-  const getDisplayStations = (): Station[] => {
-    if (searchQuery.trim()) {
-      const all = [...mostPlayed, ...spainStations, ...worldStations, ...customStations];
-      const map = new Map<string, Station>();
-      all.forEach(s => map.set(s.id, s));
-      const q = searchQuery.toLowerCase();
-      return Array.from(map.values()).filter(
-        s => s.name.toLowerCase().includes(q) || s.tags?.some(t => t.includes(q))
-      );
+  const filteredStations = useMemo<Station[]>(() => {
+    const isAllCategories = selectedCategory.toUpperCase() === 'TODOS';
+    const q = searchQuery.trim().toLowerCase();
+
+    // Build a deduplicated pool of all available stations for global search or fallback matching
+    const allPoolMap = new Map<string, Station>();
+    [...mostPlayed, ...customStations, ...spainStations, ...worldStations, ...recent].forEach(s => {
+      if (!allPoolMap.has(s.id)) {
+        allPoolMap.set(s.id, s);
+      }
+    });
+    const allPool = Array.from(allPoolMap.values());
+
+    let baseList: Station[];
+    if (q) {
+      baseList = allPool.filter(s => {
+        const tagsStr = Array.isArray(s.tags) ? s.tags.join(' ') : s.tags || '';
+        return (
+          s.name.toLowerCase().includes(q) ||
+          tagsStr.toLowerCase().includes(q) ||
+          (s.genre && s.genre.toLowerCase().includes(q)) ||
+          (s.category && s.category.toLowerCase().includes(q))
+        );
+      });
+    } else {
+      switch (activeTab) {
+        case 'mostPlayed':
+          baseList = mostPlayed;
+          break;
+        case 'spain':
+          baseList = spainStations;
+          break;
+        case 'world':
+          baseList = worldStations;
+          break;
+        case 'recent':
+          baseList = recent;
+          break;
+        default:
+          baseList = mostPlayed;
+      }
     }
 
-    switch (activeTab) {
-      case 'mostPlayed':
-        return mostPlayed;
-      case 'spain':
-        return spainStations;
-      case 'world':
-        return worldStations;
-      case 'recent':
-        return recent;
-      default:
-        return mostPlayed;
+    if (isAllCategories) {
+      return baseList;
     }
-  };
 
-  const stations = getDisplayStations();
+    // Filter active tab stations by selectedCategory
+    const tabMatches = baseList.filter(station => matchesStationCategory(station, selectedCategory));
+
+    // Also include matching stations from the global pool (including fresh Radio Browser API results for that tag)
+    // so even if a tab had few local matches, the user immediately sees matching stations for the chosen category
+    const combinedMap = new Map<string, Station>();
+    tabMatches.forEach(s => combinedMap.set(s.id, s));
+    allPool
+      .filter(station => matchesStationCategory(station, selectedCategory))
+      .forEach(s => {
+        if (!combinedMap.has(s.id)) {
+          combinedMap.set(s.id, s);
+        }
+      });
+
+    return Array.from(combinedMap.values());
+  }, [
+    selectedCategory,
+    searchQuery,
+    activeTab,
+    mostPlayed,
+    spainStations,
+    worldStations,
+    recent,
+    customStations,
+  ]);
 
   return (
     <aside className="w-full min-[1100px]:w-[400px] h-full flex flex-col bg-slate-900/90 min-[1100px]:bg-slate-900/60 border-r border-white/10 select-none overflow-hidden shrink-0">
@@ -154,19 +237,19 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
           </button>
         </div>
 
-        {/* Genre Chips */}
-        <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
-          {GENRES.map(genre => (
+        {/* Horizontal Category Filter Pills Carousel (Tesla Touch Optimized) */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pr-6 pb-1">
+          {CATEGORIES.map(category => (
             <button
-              key={genre}
-              onClick={() => handleGenreClick(genre)}
-              className={`min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                selectedGenre === genre
-                  ? 'bg-white text-slate-950 font-bold'
+              key={category}
+              onClick={() => handleCategoryClick(category)}
+              className={`h-10 px-4 shrink-0 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center justify-center ${
+                selectedCategory === category
+                  ? 'bg-white text-slate-950 font-bold shadow-sm'
                   : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
               }`}
             >
-              {genre.toUpperCase()}
+              {category}
             </button>
           ))}
         </div>
@@ -175,7 +258,11 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
       {/* Subheader for Most Played with Reset Button */}
       {activeTab === 'mostPlayed' && (
         <div className="px-4 py-2 bg-slate-950/40 border-b border-white/5 flex items-center justify-between text-xs text-slate-400 shrink-0">
-          <span>Emisoras más escuchadas / Favoritos</span>
+          <span>
+            {selectedCategory === 'TODOS'
+              ? 'Emisoras más escuchadas / Favoritos'
+              : `Filtrado por: ${selectedCategory} (${filteredStations.length})`}
+          </span>
           <button
             onClick={onResetPlayCounts}
             className="flex items-center space-x-1 px-2.5 py-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
@@ -187,15 +274,23 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
         </div>
       )}
 
-      {/* Stations List (Responsive grid in full-screen <1100px view, single list in sidebar >=1100px) */}
+      {/* Stations List rendering filteredStations */}
       <div className="flex-1 overflow-y-auto p-3 grid grid-cols-1 md:grid-cols-2 min-[1100px]:grid-cols-1 gap-2.5 content-start no-scrollbar">
-        {stations.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-slate-500">
+        {filteredStations.length === 0 ? (
+          <div className="col-span-full text-center py-12 text-slate-500 space-y-2">
             <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm">No se encontraron emisoras</p>
+            <p className="text-sm">No se encontraron emisoras en "{selectedCategory}"</p>
+            {selectedCategory !== 'TODOS' && (
+              <button
+                onClick={() => handleCategoryClick('TODOS')}
+                className="mt-2 px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-semibold transition-colors"
+              >
+                Ver todas las emisoras
+              </button>
+            )}
           </div>
         ) : (
-          stations.map(station => {
+          filteredStations.map(station => {
             const isSelected = currentStation?.id === station.id;
 
             return (
