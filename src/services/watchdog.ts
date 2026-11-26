@@ -5,8 +5,10 @@ export type ConnectionStatus = 'online' | 'reconnecting' | 'buffering' | 'error'
 
 class WatchdogService {
   private timer: any = null;
+  private reconnectTimeout: any = null;
   private lastCurrentTime = 0;
   private stallCount = 0;
+  private retryAttempt = 0;
   private statusListeners: ((status: ConnectionStatus) => void)[] = [];
   private currentUrl = '';
   private bufferSec: PreRollBuffer = 5;
@@ -18,25 +20,20 @@ class WatchdogService {
     this.bufferSec = bufferSec;
     this.isPlaying = true;
     this.stallCount = 0;
-    this.setStatus('online');
+    this.retryAttempt = 0;
+    this.setStatus('buffering');
 
     if (this.timer) clearInterval(this.timer);
+    if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
 
-    const audio = audioEngine.getAudioElement();
-
-    // Listen to native audio events
-    audio.onwaiting = () => this.setStatus('buffering');
-    audio.onplaying = () => {
-      this.setStatus('online');
-      this.stallCount = 0;
-    };
-    audio.onerror = () => {
-      this.handleStallOrError('Stream error detected');
-    };
+    this.bindAudioEvents();
 
     // Periodic watchdog timer (every 2 seconds)
     this.timer = setInterval(() => {
       if (!this.isPlaying) return;
+
+      const audio = audioEngine.getAudioElement();
+      this.bindAudioEvents();
 
       const currentTime = audio.currentTime;
       const isPaused = audio.paused;
@@ -44,15 +41,15 @@ class WatchdogService {
       if (!isPaused) {
         if (currentTime === this.lastCurrentTime && !audio.seeking) {
           this.stallCount++;
-          console.warn(`Watchdog stall count: ${this.stallCount}/3`);
-          if (this.stallCount >= 3) {
-            this.handleStallOrError('Tunnel network drop detected');
-          } else {
+          if (this.stallCount >= 4) {
+            this.handleStallOrError('Tunnel or network stall detected');
+          } else if (this.stallCount >= 2) {
             this.setStatus('buffering');
           }
         } else {
           this.stallCount = 0;
-          if (this.currentStatus === 'buffering' || this.currentStatus === 'reconnecting') {
+          this.retryAttempt = 0;
+          if (this.currentStatus !== 'online') {
             this.setStatus('online');
           }
         }
@@ -61,30 +58,79 @@ class WatchdogService {
     }, 2000);
   }
 
+  private bindAudioEvents() {
+    const audio = audioEngine.getAudioElement();
+
+    audio.onwaiting = () => {
+      if (this.isPlaying) this.setStatus('buffering');
+    };
+
+    audio.onplaying = () => {
+      this.setStatus('online');
+      this.stallCount = 0;
+      this.retryAttempt = 0;
+    };
+
+    audio.ontimeupdate = () => {
+      if (this.isPlaying && !audio.paused && audio.currentTime > 0) {
+        if (this.currentStatus !== 'online') {
+          this.setStatus('online');
+        }
+      }
+    };
+
+    audio.onstalled = () => {
+      if (this.isPlaying) {
+        this.setStatus('buffering');
+      }
+    };
+
+    audio.onerror = () => {
+      if (this.isPlaying) {
+        this.handleStallOrError('Stream error event detected');
+      }
+    };
+  }
+
   public stop() {
     this.isPlaying = false;
+    this.stallCount = 0;
+    this.retryAttempt = 0;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
     const audio = audioEngine.getAudioElement();
     audio.onwaiting = null;
     audio.onplaying = null;
+    audio.ontimeupdate = null;
+    audio.onstalled = null;
     audio.onerror = null;
     this.setStatus('online');
   }
 
   private handleStallOrError(reason: string) {
+    if (!this.isPlaying || !this.currentUrl) return;
     console.warn(`Watchdog triggered reconnection: ${reason}`);
     this.setStatus('reconnecting');
     this.stallCount = 0;
 
-    // Exponential backoff and anti-cache reconnect
-    setTimeout(() => {
+    if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+
+    // Exponential backoff with jitter (1.5s up to 10s max)
+    const baseDelay = Math.min(10000, 1500 * Math.pow(1.5, this.retryAttempt));
+    const jitter = Math.floor(Math.random() * 500);
+    this.retryAttempt++;
+
+    this.reconnectTimeout = setTimeout(() => {
       if (this.isPlaying && this.currentUrl) {
         audioEngine.reconnect(this.currentUrl, this.bufferSec);
       }
-    }, 1500);
+    }, baseDelay + jitter);
   }
 
   private setStatus(status: ConnectionStatus) {

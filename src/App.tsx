@@ -297,7 +297,7 @@ export default function App() {
   const handleUpdateEQ = (newEQ: EQSettings) => {
     setEQ(newEQ);
     saveEQSettings(newEQ);
-    audioEngine.setEQ(newEQ);
+    audioEngine.setEQ(newEQ, true);
   };
 
   const handleUpdateBuffer = (newBuf: PreRollBuffer) => {

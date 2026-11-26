@@ -87,7 +87,13 @@ export function getMostPlayedStations(allStations: Station[]): Station[] {
 export function getRecentStations(): Station[] {
   try {
     const raw = localStorage.getItem(KEYS.RECENT);
-    return raw ? JSON.parse(raw) : [FALLBACK_STATIONS[0], FALLBACK_STATIONS[2]];
+    if (!raw) return [FALLBACK_STATIONS[0], FALLBACK_STATIONS[2]];
+    const parsed: Station[] = JSON.parse(raw);
+    const fallbackMap = new Map(FALLBACK_STATIONS.map(s => [s.id, s]));
+    return parsed.map(st => {
+      const fb = fallbackMap.get(st.id);
+      return fb ? { ...st, url: fb.url, codec: fb.codec } : st;
+    });
   } catch {
     return [];
   }
