@@ -4,8 +4,11 @@ import {
   getMostPlayedStations,
   incrementPlayCount,
   resetPlayCounts,
+  getFavoriteIds,
+  toggleFavoriteStation,
   getRecentStations,
   addRecentStation,
+  getLastStation,
   getCustomStations,
   addCustomStation,
   deleteCustomStation as persistDeleteCustom,
@@ -40,22 +43,29 @@ import { MainPlayer } from './components/MainPlayer';
 import { AudioEqualizerModal } from './components/AudioEqualizerModal';
 import { CustomStationModal } from './components/CustomStationModal';
 import { DriveModeBar } from './components/DriveModeBar';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
-export default function App() {
-  const [theme, setTheme] = useState<ThemeMode>(getThemeMode());
-  const [mostPlayed, setMostPlayed] = useState<Station[]>(getMostPlayedStations([]));
-  const [recent, setRecent] = useState<Station[]>(getRecentStations());
-  const [customStations, setCustomStations] = useState<Station[]>(getCustomStations());
+function MainApp() {
+  const [theme, setTheme] = useState<ThemeMode>(() => getThemeMode());
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => getFavoriteIds());
+  const [mostPlayed, setMostPlayed] = useState<Station[]>(() => getMostPlayedStations([]));
+  const [recent, setRecent] = useState<Station[]>(() => getRecentStations());
+  const [customStations, setCustomStations] = useState<Station[]>(() => getCustomStations());
   const [spainStations, setSpainStations] = useState<Station[]>([]);
   const [worldStations, setWorldStations] = useState<Station[]>([]);
-  
-  const [currentStation, setCurrentStation] = useState<Station | null>(mostPlayed[0] || FALLBACK_STATIONS[0]);
+
+  const [currentStation, setCurrentStation] = useState<Station | null>(() => {
+    const last = getLastStation();
+    if (last) return last;
+    const initialMostPlayed = getMostPlayedStations([]);
+    return initialMostPlayed[0] || FALLBACK_STATIONS[0];
+  });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.8);
   const [muted, setMuted] = useState<boolean>(false);
 
-  const [eq, setEQ] = useState<EQSettings>(getEQSettings());
-  const [buffer, setBuffer] = useState<PreRollBuffer>(getPreRollBuffer());
+  const [eq, setEQ] = useState<EQSettings>(() => getEQSettings());
+  const [buffer, setBuffer] = useState<PreRollBuffer>(() => getPreRollBuffer());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('online');
 
   const [isEQOpen, setIsEQOpen] = useState(false);
@@ -147,16 +157,20 @@ export default function App() {
   // Theme effect
   useEffect(() => {
     saveThemeMode(theme);
-    const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else if (theme === 'light') {
-      root.classList.remove('dark');
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) root.classList.add('dark');
-      else root.classList.remove('dark');
-    }
+    try {
+      const root = document.documentElement;
+      if (theme === 'dark') {
+        root.classList.add('dark');
+      } else if (theme === 'light') {
+        root.classList.remove('dark');
+      } else {
+        const prefersDark =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) root.classList.add('dark');
+        else root.classList.remove('dark');
+      }
+    } catch {}
   }, [theme]);
 
   // Watchdog status listener
@@ -196,29 +210,54 @@ export default function App() {
     };
   }, [isPlaying, currentStation]);
 
-  // MediaSession API Integration
+  // MediaSession API Integration (safely wrapped for all browser/WebView implementations)
   useEffect(() => {
-    if ('mediaSession' in navigator && currentStation) {
-      const candidates = getStationArtworkCandidates(currentStation);
-      const bestLogo = candidates[0] || currentStation.favicon;
-      const tagsList = Array.isArray(currentStation.tags)
-        ? currentStation.tags
-        : typeof currentStation.tags === 'string'
-        ? currentStation.tags.split(',')
-        : [];
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentStation.name,
-        artist: `AudioCar Radio • ${currentStation.country}`,
-        album: tagsList[0] ? `Género: ${tagsList[0]}` : 'Streaming en Directo',
-        artwork: bestLogo
-          ? [{ src: bestLogo, sizes: '512x512', type: bestLogo.startsWith('data:image/svg+xml') ? 'image/svg+xml' : 'image/png' }]
-          : [],
-      });
+    try {
+      if (
+        typeof navigator !== 'undefined' &&
+        'mediaSession' in navigator &&
+        typeof MediaMetadata !== 'undefined' &&
+        currentStation
+      ) {
+        const candidates = getStationArtworkCandidates(currentStation);
+        const httpLogo = candidates.find(url => url.startsWith('http')) || currentStation.favicon;
+        const tagsList = Array.isArray(currentStation.tags)
+          ? currentStation.tags
+          : typeof currentStation.tags === 'string'
+          ? currentStation.tags.split(',')
+          : [];
 
-      navigator.mediaSession.setActionHandler('play', () => handleTogglePlay());
-      navigator.mediaSession.setActionHandler('pause', () => handleTogglePlay());
-      navigator.mediaSession.setActionHandler('previoustrack', () => handlePrevStation());
-      navigator.mediaSession.setActionHandler('nexttrack', () => handleNextStation());
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: currentStation.name || 'AudioCar Radio',
+            artist: `AudioCar Radio • ${currentStation.country || 'Live'}`,
+            album: tagsList[0] ? `Género: ${tagsList[0]}` : 'Streaming en Directo',
+            artwork:
+              httpLogo && httpLogo.startsWith('http')
+                ? [{ src: httpLogo, sizes: '512x512', type: 'image/png' }]
+                : [],
+          });
+        } catch {
+          // Fallback without artwork if the browser rejects the artwork URL
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: currentStation.name || 'AudioCar Radio',
+            artist: `AudioCar Radio • ${currentStation.country || 'Live'}`,
+          });
+        }
+
+        const safeSetHandler = (action: MediaSessionAction, handler: () => void) => {
+          try {
+            navigator.mediaSession.setActionHandler(action, handler);
+          } catch {}
+        };
+
+        safeSetHandler('play', () => handleTogglePlay());
+        safeSetHandler('pause', () => handleTogglePlay());
+        safeSetHandler('previoustrack', () => handlePrevStation());
+        safeSetHandler('nexttrack', () => handleNextStation());
+      }
+    } catch (e) {
+      console.warn('MediaSession setup skipped:', e);
     }
   }, [currentStation]);
 
@@ -299,6 +338,12 @@ export default function App() {
 
   const handleResetPlayCounts = () => {
     resetPlayCounts();
+    setMostPlayed(getMostPlayedStations([...spainStations, ...worldStations]));
+  };
+
+  const handleToggleFavoriteStation = (stationId: string) => {
+    const updatedFavs = toggleFavoriteStation(stationId);
+    setFavoriteIds(updatedFavs);
     setMostPlayed(getMostPlayedStations([...spainStations, ...worldStations]));
   };
 
@@ -394,6 +439,8 @@ export default function App() {
             onSearch={handleSearch}
             onSelectGenre={handleSelectGenre}
             onResetPlayCounts={handleResetPlayCounts}
+            favoriteIds={favoriteIds}
+            onToggleFavoriteStation={handleToggleFavoriteStation}
             onBackToPlayer={() => setMobileView('player')}
           />
         </div>
@@ -421,6 +468,8 @@ export default function App() {
             onTeslaVolumeUp={handleTeslaVolumeUp}
             activeShiftState={activeShiftState}
             isReverseDimmed={isReverseDimmed}
+            isFavorite={currentStation ? Array.isArray(favoriteIds) && favoriteIds.includes(currentStation.id) : false}
+            onToggleFavorite={currentStation ? () => handleToggleFavoriteStation(currentStation.id) : undefined}
           />
         </div>
       </div>
@@ -457,5 +506,16 @@ export default function App() {
         onAddStation={handleAddCustom}
       />
     </div>
+  );
+}
+
+/**
+ * Componente raíz con soporte universal de ruta ('/', '/radio/', '*') y ErrorBoundary visible.
+ */
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
   );
 }

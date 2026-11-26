@@ -104,10 +104,16 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
     const isAllCategories = selectedCategory.toUpperCase() === 'TODOS';
     const q = searchQuery.trim().toLowerCase();
 
+    const safeMostPlayed = Array.isArray(mostPlayed) ? mostPlayed : [];
+    const safeCustom = Array.isArray(customStations) ? customStations : [];
+    const safeSpain = Array.isArray(spainStations) ? spainStations : [];
+    const safeWorld = Array.isArray(worldStations) ? worldStations : [];
+    const safeRecent = Array.isArray(recent) ? recent : [];
+
     // Build a deduplicated pool of all available stations for global search or fallback matching
     const allPoolMap = new Map<string, Station>();
-    [...mostPlayed, ...customStations, ...spainStations, ...worldStations, ...recent].forEach(s => {
-      if (!allPoolMap.has(s.id)) {
+    [...safeMostPlayed, ...safeCustom, ...safeSpain, ...safeWorld, ...safeRecent].forEach(s => {
+      if (s && typeof s.id === 'string' && typeof s.name === 'string' && !allPoolMap.has(s.id)) {
         allPoolMap.set(s.id, s);
       }
     });
@@ -116,9 +122,9 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
     let baseList: Station[];
     if (q) {
       baseList = allPool.filter(s => {
-        const tagsStr = Array.isArray(s.tags) ? s.tags.join(' ') : s.tags || '';
+        const tagsStr = Array.isArray(s.tags) ? s.tags.join(' ') : typeof s.tags === 'string' ? s.tags : '';
         return (
-          s.name.toLowerCase().includes(q) ||
+          (s.name || '').toLowerCase().includes(q) ||
           tagsStr.toLowerCase().includes(q) ||
           (s.genre && s.genre.toLowerCase().includes(q)) ||
           (s.category && s.category.toLowerCase().includes(q))
@@ -127,20 +133,21 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
     } else {
       switch (activeTab) {
         case 'mostPlayed':
-          baseList = mostPlayed;
+          baseList = safeMostPlayed;
           break;
         case 'spain':
-          baseList = spainStations;
+          baseList = safeSpain;
           break;
         case 'world':
-          baseList = worldStations;
+          baseList = safeWorld;
           break;
         case 'recent':
-          baseList = recent;
+          baseList = safeRecent;
           break;
         default:
-          baseList = mostPlayed;
+          baseList = safeMostPlayed;
       }
+      baseList = baseList.filter(s => Boolean(s && typeof s.id === 'string' && typeof s.name === 'string'));
     }
 
     if (isAllCategories) {
@@ -283,7 +290,7 @@ export const SidebarDirectory: React.FC<SidebarDirectoryProps> = ({
         ) : (
           filteredStations.map(station => {
             const isSelected = currentStation?.id === station.id;
-            const isFav = favoriteIds.includes(station.id);
+            const isFav = Array.isArray(favoriteIds) && favoriteIds.includes(station.id);
 
             return (
               <div

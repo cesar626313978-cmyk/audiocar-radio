@@ -129,8 +129,21 @@ async function startServer() {
       appType: 'spa',
     });
     app.use((req, _res, next) => {
-      if (req.url === '/' || req.url === '/index.html') {
-        req.url = '/radio/';
+      if (!req.url) {
+        next();
+        return;
+      }
+      const [pathname, search] = req.url.split('?');
+      const qs = search ? `?${search}` : '';
+      if (
+        pathname === '/' ||
+        pathname === '/index.html' ||
+        pathname === '/radio' ||
+        pathname === '/radio/index.html'
+      ) {
+        req.url = `/radio/${qs}`;
+      } else if (!pathname.startsWith('/radio/') && !pathname.startsWith('/api/')) {
+        req.url = `/radio${pathname}${qs}`;
       }
       next();
     });

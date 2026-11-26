@@ -8,6 +8,9 @@ export function getTeslaSession(): TeslaSession | null {
     const raw = localStorage.getItem(TESLA_SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
     const accessToken = parsed.access_token || parsed.accessToken;
     const vehicleId =
       parsed.vehicle_id ||
@@ -17,13 +20,15 @@ export function getTeslaSession(): TeslaSession | null {
       parsed.vehicle?.id ||
       parsed.vehicle?.vehicle_id;
 
-    if (!accessToken || !vehicleId) return null;
+    if (typeof accessToken !== 'string' || !accessToken.trim() || !vehicleId) {
+      return null;
+    }
 
     return {
       ...parsed,
-      access_token: accessToken,
+      access_token: accessToken.trim(),
       refresh_token: parsed.refresh_token || parsed.refreshToken,
-      vehicle_id: vehicleId,
+      vehicle_id: String(vehicleId),
       expires_at: parsed.expires_at || parsed.expiresAt,
     };
   } catch (e) {
@@ -35,7 +40,13 @@ export function getTeslaSession(): TeslaSession | null {
 export function saveTeslaSession(session: TeslaSession): void {
   try {
     const existingRaw = localStorage.getItem(TESLA_SESSION_KEY);
-    const existing = existingRaw ? JSON.parse(existingRaw) : {};
+    let existing: Record<string, unknown> = {};
+    if (existingRaw) {
+      const parsed = JSON.parse(existingRaw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        existing = parsed;
+      }
+    }
     const merged = {
       ...existing,
       ...session,
