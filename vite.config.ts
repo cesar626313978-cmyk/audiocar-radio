@@ -26,6 +26,22 @@ export default defineConfig(() => {
           if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
             fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
           }
+
+          // Duplicate built assets and index.html into dist/radio/ so /radio/assets/* resolves physically
+          const builtAssetsDir = path.resolve(distDir, 'assets');
+          const radioDir = path.resolve(distDir, 'radio');
+          const radioAssetsDir = path.resolve(radioDir, 'assets');
+          const indexHtml = path.resolve(distDir, 'index.html');
+          const radioIndexHtml = path.resolve(radioDir, 'index.html');
+
+          if (fs.existsSync(builtAssetsDir)) {
+            fs.mkdirSync(radioAssetsDir, {recursive: true});
+            fs.cpSync(builtAssetsDir, radioAssetsDir, {recursive: true, force: true});
+          }
+          if (fs.existsSync(indexHtml)) {
+            fs.mkdirSync(radioDir, {recursive: true});
+            fs.cpSync(indexHtml, radioIndexHtml, {force: true});
+          }
         },
       },
     ],
